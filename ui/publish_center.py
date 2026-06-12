@@ -4,35 +4,66 @@ import streamlit as st
 from sqlalchemy.orm import Session
 
 from core.models import PLATFORMS
-from core.publishing import PublishError, get_publishable_posts, mark_as_manually_posted, publish_post
+from core.publishing import PublishError, get_publishable_posts, get_publisher_statuses, mark_as_manually_posted, publish_post
 from core.utils import format_user_error
+from ui.components import (
+    render_connector_status,
+    render_page_header,
+    render_platform_badge,
+    render_section_header,
+    render_status_badge,
+)
 
 PLATFORM_LABELS = {
     "facebook": "Facebook",
     "instagram": "Instagram",
     "linkedin": "LinkedIn",
-    "twitter": "Twitter/X",
+    "twitter": "X / Twitter",
     "website_blog": "Website Blog",
 }
 
 
 def render(session: Session) -> None:
-    st.title("Publish Center")
-    st.caption("Publish approved or scheduled posts. Human confirmation required — no auto-publishing.")
+    render_page_header("Publish Center", "Publish approved or scheduled posts. Human confirmation required.")
 
-    posts = get_publishable_posts(session)
-    if not posts:
-        st.info("No approved or scheduled posts ready to publish.")
-        return
+    pub_statuses = get_publisher_statuses()
+    main_col, side_col = st.columns([0.7, 0.3])
 
-    st.write(f"**{len(posts)}** post(s) ready to publish.")
+    with side_col:
+        st.markdown('<div class="cp-card-panel">', unsafe_allow_html=True)
+        render_section_header("Connector Status")
+        for key, label in PLATFORM_LABELS.items():
+            render_connector_status(label, pub_statuses.get(key, False))
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    for post in posts:
-        with st.expander(f"#{post.id} — {post.platform.title()} — {post.topic[:60]}"):
-            st.write(f"**Status:** {post.status}")
-            st.write(f"**Provider:** {post.provider_used or 'N/A'} | **Model:** {post.model_used or 'N/A'}")
-            st.write(f"**Created:** {post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at else 'N/A'}")
-            st.text_area("Content Preview", value=post.content[:500], height=120, disabled=True, key=f"preview_{post.id}")
+    with main_col:
+        posts = get_publishable_posts(session)
+        if not posts:
+            st.info("No approved or scheduled posts ready to publish.")
+            return
+
+        st.markdown(f"**{len(posts)}** post(s) ready to publish.")
+
+        for post in posts:
+            st.markdown('<div class="cp-card">', unsafe_allow_html=True)
+            header = (
+                f"#{post.id} — {post.topic[:60]} "
+                f"{render_platform_badge(post.platform)} "
+                f"{render_status_badge(post.status.replace('_', ' ').title(), 'approved')}"
+            )
+            st.markdown(header, unsafe_allow_html=True)
+            st.caption(
+                f"Provider: {post.provider_used or 'N/A'} · "
+                f"Created: {post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at else 'N/A'}"
+            )
+            st.text_area(
+                "Content Preview",
+                value=post.content[:500],
+                height=120,
+                disabled=True,
+                key=f"preview_{post.id}",
+                label_visibility="collapsed",
+            )
 
             target_platform = st.selectbox(
                 "Target publish platform",
@@ -61,6 +92,7 @@ def render(session: Session) -> None:
                     key=f"publish_{post.id}",
                     type="primary",
                     disabled=not confirmed,
+                    use_container_width=True,
                 ):
                     try:
                         with st.spinner("Publishing..."):
@@ -72,8 +104,7 @@ def render(session: Session) -> None:
                             )
                         if result.get("success"):
                             st.success(
-                                f"Published successfully! "
-                                f"ID: {result.get('external_post_id', 'N/A')}"
+                                f"Published! ID: {result.get('external_post_id', 'N/A')}"
                             )
                             if result.get("external_post_url"):
                                 st.write(f"URL: {result['external_post_url']}")
@@ -86,7 +117,7 @@ def render(session: Session) -> None:
                         st.error(format_user_error("Publish failed.", exc))
 
             with col2:
-                if st.button("Mark as Manually Posted", key=f"manual_{post.id}"):
+                if st.button("Mark Manually Posted", key=f"manual_{post.id}", use_container_width=True):
                     ok, msg = mark_as_manually_posted(session, post.id, target_platform)
                     if ok:
                         st.success(msg)
@@ -96,3 +127,4 @@ def render(session: Session) -> None:
 
             if post.publish_error:
                 st.warning(f"Last publish error: {post.publish_error}")
+            st.markdown("</div>", unsafe_allow_html=True)

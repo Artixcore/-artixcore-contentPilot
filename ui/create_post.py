@@ -5,18 +5,32 @@ from sqlalchemy.orm import Session
 
 from core.agent import AgentValidationError, ContentPilotAgent
 from core.database import get_brand_profile
-from core.models import PLATFORMS
+from core.models import PLATFORMS, Post
 from core.router import ProviderRouter
 from core.utils import format_user_error
 from providers import PROVIDER_UNAVAILABLE_MSG
-
+from ui.components import (
+    render_alert,
+    render_connector_status,
+    render_page_header,
+    render_section_header,
+    render_status_badge,
+)
 
 PLATFORM_LABELS = {
     "facebook": "Facebook",
     "instagram": "Instagram",
     "linkedin": "LinkedIn",
-    "twitter": "Twitter/X",
+    "twitter": "X / Twitter",
     "website_blog": "Website Blog",
+}
+
+PLATFORM_ICONS = {
+    "facebook": "📘",
+    "instagram": "📷",
+    "linkedin": "💼",
+    "twitter": "🐦",
+    "website_blog": "🌐",
 }
 
 PROVIDER_MODES = ["auto", "manual", "fallback", "quality"]
@@ -24,31 +38,49 @@ PROVIDERS = ["openai", "anthropic"]
 
 
 def render(session: Session) -> None:
-    st.title("Create Post")
-    st.caption("Generate AI-powered content for your selected platform.")
+    render_page_header("Create Post", "Generate AI-powered content for your selected platform.")
 
     router = ProviderRouter(session=session)
     if not router.has_any_provider():
-        st.error(PROVIDER_UNAVAILABLE_MSG)
+        render_alert(PROVIDER_UNAVAILABLE_MSG, "error")
 
     brand = get_brand_profile(session)
     default_tone = brand.tone if brand else ""
     default_cta = brand.preferred_cta if brand else ""
+    availability = router.get_availability_status()
 
-    col1, col2 = st.columns(2)
-    with col1:
-        platform = st.selectbox(
-            "Platform",
-            options=list(PLATFORMS),
-            format_func=lambda x: PLATFORM_LABELS.get(x, x),
-        )
+    if "create_platform" not in st.session_state:
+        st.session_state.create_platform = "linkedin"
+
+    render_section_header("Select Platform")
+    pcols = st.columns(len(PLATFORMS))
+    for col, plat in zip(pcols, PLATFORMS):
+        with col:
+            selected = st.session_state.create_platform == plat
+            style = "border-color:#D97706;background:#FFF7ED;" if selected else ""
+            st.markdown(
+                f'<div class="cp-platform-card" style="{style}">'
+                f'<div style="font-size:1.5rem;">{PLATFORM_ICONS.get(plat, "📄")}</div>'
+                f'<div style="font-weight:600;margin-top:8px;">{PLATFORM_LABELS.get(plat, plat)}</div></div>',
+                unsafe_allow_html=True,
+            )
+            if st.button(f"Select {PLATFORM_LABELS.get(plat, plat)}", key=f"plat_{plat}", use_container_width=True):
+                st.session_state.create_platform = plat
+                st.rerun()
+
+    platform = st.session_state.create_platform
+    main_col, side_col = st.columns([0.65, 0.35])
+
+    with main_col:
         topic = st.text_input("Topic *", placeholder="e.g. Building a SaaS MVP in 90 days")
         goal = st.text_input("Goal", placeholder="e.g. Drive consultation bookings")
-        tone = st.text_input("Tone", value=default_tone)
-    with col2:
-        language = st.selectbox("Language", ["English", "Arabic", "French", "Spanish", "German"])
-        cta = st.text_input("CTA", value=default_cta)
-        provider_mode = st.selectbox("Provider Mode", PROVIDER_MODES)
+        c1, c2 = st.columns(2)
+        with c1:
+            tone = st.text_input("Tone", value=default_tone)
+            language = st.selectbox("Language", ["English", "Arabic", "French", "Spanish", "German"])
+        with c2:
+            cta = st.text_input("CTA", value=default_cta)
+            provider_mode = st.selectbox("Provider Mode", PROVIDER_MODES)
         selected_provider = st.selectbox(
             "Selected Provider",
             PROVIDERS,
@@ -56,11 +88,42 @@ def render(session: Session) -> None:
             help="Used in manual and fallback modes.",
         )
 
-    generate = st.button("Generate Post", type="primary", disabled=not router.has_any_provider())
+        generate = st.button("Generate Post", type="primary", disabled=not router.has_any_provider())
+
+    with side_col:
+        st.markdown('<div class="cp-card-panel">', unsafe_allow_html=True)
+        render_section_header("Brand Profile")
+        if brand:
+            st.markdown(
+                f"**{brand.company_name or 'Artixcore'}**  \n"
+                f"{brand.description[:120] + '...' if brand.description and len(brand.description) > 120 else brand.description or ''}"
+            )
+        render_section_header("Provider Status")
+        render_connector_status("OpenAI", bool(availability.get("openai")))
+        render_connector_status("Anthropic", bool(availability.get("anthropic")))
+        st.markdown(
+            '<p style="font-size:0.8125rem;color:#6B7280;margin-top:12px;">'
+            "All generated content requires human approval before publishing.</p>",
+            unsafe_allow_html=True,
+        )
+        render_section_header("Similar Posts")
+        similar = (
+            session.query(Post)
+            .filter(Post.platform == platform)
+            .order_by(Post.created_at.desc())
+            .limit(3)
+            .all()
+        )
+        if similar:
+            for p in similar:
+                st.caption(f"#{p.id} — {p.topic[:40]}")
+        else:
+            st.caption("No similar posts yet.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
     if generate:
         if not topic or not topic.strip():
-            st.error("Topic is required. Please enter a topic for your post.")
+            render_alert("Topic is required. Please enter a topic for your post.", "error")
             return
 
         with st.spinner("Generating content..."):
@@ -76,10 +139,11 @@ def render(session: Session) -> None:
                     provider_mode=provider_mode,
                     selected_provider=selected_provider if provider_mode in ("manual", "fallback") else None,
                 )
-                st.success(f"Post saved to database (ID: {result.post_id}) — status: pending_approval")
+                st.success(f"Post saved (ID: {result.post_id}) — pending approval")
 
-                st.subheader("Generated Content")
-                st.text_area("Content", value=result.content, height=200, disabled=True)
+                st.markdown('<div class="cp-card">', unsafe_allow_html=True)
+                render_section_header("Generated Content Preview")
+                st.text_area("Content", value=result.content, height=200, disabled=True, label_visibility="collapsed")
 
                 if result.hashtags:
                     tags = " ".join(f"#{h.lstrip('#')}" for h in result.hashtags)
@@ -88,14 +152,27 @@ def render(session: Session) -> None:
                 if result.image_prompt:
                     st.write(f"**Image Prompt:** {result.image_prompt}")
 
-                c1, c2 = st.columns(2)
-                c1.write(f"**Provider:** {result.provider_used}")
-                c2.write(f"**Model:** {result.model_used or 'N/A'}")
+                mc1, mc2, mc3 = st.columns(3)
+                mc1.write(f"**Provider:** {result.provider_used}")
+                mc2.write(f"**Model:** {result.model_used or 'N/A'}")
+                mc3.markdown(render_status_badge("Pending Approval", "pending"), unsafe_allow_html=True)
 
                 if result.quality_notes:
-                    st.info(f"**Quality Notes:** {result.quality_notes}")
+                    render_alert(f"Quality Notes: {result.quality_notes}", "info")
+
+                bc1, bc2, bc3 = st.columns(3)
+                with bc1:
+                    st.button("Save", key="gen_save", disabled=True, use_container_width=True)
+                with bc2:
+                    if st.button("Go to Approvals", key="gen_approve", use_container_width=True):
+                        from ui.navigation import navigate
+                        navigate("approvals")
+                        st.rerun()
+                with bc3:
+                    st.button("Edit", key="gen_edit", use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
 
             except AgentValidationError as exc:
-                st.error(exc.message)
+                render_alert(exc.message, "error")
             except Exception as exc:
-                st.error(format_user_error("Content generation failed. Please try again.", exc))
+                render_alert(format_user_error("Content generation failed. Please try again.", exc), "error")

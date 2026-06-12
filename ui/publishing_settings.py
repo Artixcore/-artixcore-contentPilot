@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from core.publishing import get_publisher_statuses
 from core.utils import mask_secret
-
+from ui.components import render_connector_status, render_page_header, render_section_header
 
 PLATFORM_CONFIG = {
     "linkedin": {
@@ -50,29 +50,24 @@ PLATFORM_CONFIG = {
 
 
 def render(session: Session) -> None:
-    st.title("Publishing Settings")
-    st.caption("Social platform connector status. Tokens are loaded from `.env` — never shown in full.")
+    render_page_header("Publishing Settings", "Social platform connector status. Tokens loaded from `.env`.")
 
     statuses = get_publisher_statuses()
 
     for platform_key, config in PLATFORM_CONFIG.items():
         configured = statuses.get(platform_key, False)
-        with st.expander(f"{config['label']} — {'Configured' if configured else 'Missing configuration'}"):
-            if configured:
-                st.success(f"{config['label']} connector is configured.")
+        st.markdown('<div class="cp-card">', unsafe_allow_html=True)
+        render_connector_status(config["label"], configured)
+        render_section_header("Required Environment Variables")
+        for env_name, _ in config["vars"]:
+            value = os.getenv(env_name, "")
+            if "TOKEN" in env_name or "SECRET" in env_name or "KEY" in env_name:
+                display = mask_secret(value)
             else:
-                st.warning(f"{config['label']} connector is not configured.")
+                display = value or "Not set"
+            st.caption(f"`{env_name}`: {display}")
+        st.markdown("</div>", unsafe_allow_html=True)
 
-            st.markdown("**Required environment variables:**")
-            for env_name, _ in config["vars"]:
-                value = os.getenv(env_name, "")
-                if "TOKEN" in env_name or "SECRET" in env_name or "KEY" in env_name:
-                    display = mask_secret(value)
-                else:
-                    display = value or "Not set"
-                st.caption(f"`{env_name}`: {display}")
-
-    st.divider()
     st.info(
         "OAuth login is not implemented yet. Configure access tokens manually in `.env`. "
         "Production publishing may require platform review and approved permissions."

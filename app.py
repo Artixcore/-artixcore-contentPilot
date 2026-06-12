@@ -7,21 +7,8 @@ from dotenv import load_dotenv
 
 from core.chat_database import seed_default_chatbot_settings
 from core.database import get_session, init_db, seed_default_brand_profile
-from ui import (
-    approvals,
-    brand_settings,
-    campaigns,
-    chat_control,
-    chat_inbox,
-    chat_settings,
-    create_post,
-    dashboard,
-    exports,
-    provider_settings,
-    publish_center,
-    publishing_settings,
-    training_data,
-)
+from ui.layout import render_app_shell
+from ui.theme import inject_theme
 
 load_dotenv()
 
@@ -31,19 +18,10 @@ st.set_page_config(
     page_title="Artixcore ContentPilot",
     page_icon="✈️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
-st.markdown(
-    """
-    <style>
-    .block-container { padding-top: 1.5rem; }
-    [data-testid="stSidebar"] { background-color: #0f172a; }
-    [data-testid="stSidebar"] * { color: #e2e8f0 !important; }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+inject_theme()
 
 
 @st.cache_resource
@@ -71,33 +49,9 @@ def start_telegram_controller():
 
 start_telegram_controller()
 
-PAGES = {
-    "Dashboard": dashboard.render,
-    "Brand Settings": brand_settings.render,
-    "Create Post": create_post.render,
-    "Approvals": approvals.render,
-    "Campaigns": campaigns.render,
-    "Provider Settings": provider_settings.render,
-    "Publishing Settings": publishing_settings.render,
-    "Publish Center": publish_center.render,
-    "Chat Control": chat_control.render,
-    "Chat Inbox": chat_inbox.render,
-    "Chat Settings": chat_settings.render,
-    "Training Data": training_data.render,
-    "Exports": exports.render,
-}
-
-with st.sidebar:
-    st.title("ContentPilot")
-    st.caption("Artixcore AI Content Agent")
-    st.divider()
-    selection = st.radio("Navigation", list(PAGES.keys()), label_visibility="collapsed")
-    st.divider()
-    st.caption("Artixcore ContentPilot — local-first workflow")
-
 session = get_session()
 try:
-    PAGES[selection](session)
+    render_app_shell(session)
 except Exception as exc:
     from core.utils import APP_DEBUG, format_user_error
 

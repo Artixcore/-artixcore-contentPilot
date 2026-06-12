@@ -14,7 +14,7 @@ from core.exports import (
 from core.models import PLATFORMS
 from core.chat_database import export_chatbot_training_jsonl, export_combined_training_jsonl
 from core.training_data import export_training_data_csv, export_training_data_jsonl
-
+from ui.components import render_page_header, render_section_header
 
 EXPORT_TYPES = [
     "Posts — CSV",
@@ -30,14 +30,15 @@ EXPORT_TYPES = [
 
 
 def render(session: Session) -> None:
-    st.title("Exports")
-    st.caption("Download posts, training data, and activity logs.")
+    render_page_header("Exports", "Download posts, training data, and activity logs.")
 
+    st.markdown('<div class="cp-card">', unsafe_allow_html=True)
     export_type = st.selectbox("Export Type", EXPORT_TYPES)
     include_rejected = False
 
     posts = []
     if export_type.startswith("Posts"):
+        render_section_header("Filters")
         filter_type = st.selectbox(
             "Filter",
             options=["all", "approved", "pending", "published", "rejected"],
@@ -97,6 +98,7 @@ def render(session: Session) -> None:
             file_name=filename,
             mime=mime,
             type="primary",
+            use_container_width=True,
         )
 
         with st.expander("Preview"):
@@ -106,3 +108,5 @@ def render(session: Session) -> None:
         from core.utils import format_user_error
 
         st.error(format_user_error("Export failed. Please try again.", exc))
+
+    st.markdown("</div>", unsafe_allow_html=True)
