@@ -9,20 +9,21 @@ from core.agent import AgentValidationError, ContentPilotAgent
 from core.router import ProviderRouter
 from core.utils import format_user_error
 from providers import PROVIDER_UNAVAILABLE_MSG
-from ui.components import (
-    render_chat_message,
-    render_date_divider,
-    render_section_title,
-    render_template_card,
-    render_welcome_hero,
+from ui.bootstrap_components import (
+    chat_message_html,
+    date_divider,
+    section_title,
+    template_card,
+    welcome_hero,
+    widget_section_header,
 )
 from ui.navigation import navigate
 
 TEMPLATES = [
-    "Create 5 LinkedIn posts for Artixcore SaaS services",
-    "Draft replies for new client messages",
-    "Generate a weekly social content plan",
-    "Prepare chatbot answers for service inquiries",
+    ("Create LinkedIn posts", "Create 5 LinkedIn posts for Artixcore SaaS services"),
+    ("Draft client replies", "Draft replies for new client messages"),
+    ("Generate content plan", "Generate a weekly social content plan"),
+    ("Prepare chatbot answers", "Prepare chatbot answers for service inquiries"),
 ]
 
 PLATFORM_HINTS = {
@@ -82,7 +83,7 @@ def _handle_prompt(session: Session, prompt: str, router: ProviderRouter) -> Non
         _add_message(
             "assistant",
             "Campaign planning is available in **Campaigns**. I can also generate individual posts — "
-            "try asking with a specific topic and platform, e.g. \"Create a LinkedIn post about SaaS MVP development\".",
+            'try asking with a specific topic and platform, e.g. "Create a LinkedIn post about SaaS MVP development".',
             "ContentPilot",
         )
         return
@@ -123,17 +124,20 @@ def render(session: Session) -> None:
     router = ProviderRouter(session=session)
     messages = st.session_state.get("chat_messages", [])
 
+    st.markdown(widget_section_header("AI Workspace", "Your AI content, chatbot, and publishing command center."), unsafe_allow_html=True)
+
     if not messages:
-        render_welcome_hero()
+        st.markdown(welcome_hero(), unsafe_allow_html=True)
     else:
-        render_date_divider("TODAY")
+        chat_html = date_divider("TODAY")
         for msg in messages:
-            render_chat_message(
+            chat_html += chat_message_html(
                 msg["role"] if msg["role"] == "user" else "assistant",
                 msg["content"],
                 provider=msg.get("provider", ""),
                 show_actions=msg["role"] != "user",
             )
+        st.markdown(chat_html, unsafe_allow_html=True)
 
     with st.container(border=True):
         prompt = st.text_area(
@@ -146,27 +150,30 @@ def render(session: Session) -> None:
 
         bc1, bc2, bc3, bc4 = st.columns([1, 1, 1, 2])
         with bc1:
-            st.button("📎 Attach", key="ws_attach", use_container_width=True)
+            st.button("Attach", key="ws_attach", use_container_width=True)
         with bc2:
-            st.button("🖼 Upload Media", key="ws_upload", use_container_width=True)
+            st.button("Upload Media", key="ws_upload", use_container_width=True)
         with bc3:
             if st.button("Clear Chat", key="ws_clear", use_container_width=True):
                 st.session_state.chat_messages = []
                 st.rerun()
         with bc4:
-            send = st.button("Send →", key="ws_send", type="primary", use_container_width=True)
+            send = st.button("Send", key="ws_send", type="primary", use_container_width=True)
 
         if send and prompt.strip():
             _handle_prompt(session, prompt.strip(), router)
             st.rerun()
 
     if not messages:
-        render_section_title("Start with a template")
+        st.markdown(section_title("Start with a template"), unsafe_allow_html=True)
+        cards = '<div class="row g-3">' + "".join(
+            template_card(title, desc) for title, desc in TEMPLATES
+        ) + "</div>"
+        st.markdown(cards, unsafe_allow_html=True)
         tc = st.columns(2)
-        for i, template in enumerate(TEMPLATES):
+        for i, (_, template) in enumerate(TEMPLATES):
             with tc[i % 2]:
-                render_template_card(template, description="Click to use this prompt")
-                if st.button("Use template →", key=f"tpl_{i}", use_container_width=True):
+                if st.button("Use template", key=f"tpl_{i}", use_container_width=True):
                     _handle_prompt(session, template, router)
                     st.rerun()
 

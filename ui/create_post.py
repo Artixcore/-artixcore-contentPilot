@@ -9,12 +9,11 @@ from core.models import PLATFORMS, Post
 from core.router import ProviderRouter
 from ui.notifications import show_error_from_dict, show_success
 from providers import PROVIDER_UNAVAILABLE_MSG
-from ui.components import (
-    render_alert,
-    render_connector_status,
-    render_page_header,
-    render_section_header,
-    render_status_badge,
+from ui.bootstrap_components import (
+    alert_html,
+    badge,
+    section_title,
+    widget_section_header,
 )
 
 PLATFORM_LABELS = {
@@ -25,50 +24,33 @@ PLATFORM_LABELS = {
     "website_blog": "Website Blog",
 }
 
-PLATFORM_ICONS = {
-    "facebook": "📘",
-    "instagram": "📷",
-    "linkedin": "💼",
-    "twitter": "🐦",
-    "website_blog": "🌐",
-}
-
 PROVIDER_MODES = ["auto", "manual", "fallback", "quality"]
 PROVIDERS = ["openai", "anthropic"]
 
 
 def render(session: Session) -> None:
-    render_page_header("Create Post", "Generate AI-powered content for your selected platform.")
+    st.markdown(
+        widget_section_header("Create Post", "Generate AI-powered content for your selected platform."),
+        unsafe_allow_html=True,
+    )
 
     router = ProviderRouter(session=session)
     if not router.has_any_provider():
-        render_alert(PROVIDER_UNAVAILABLE_MSG, "error")
+        st.markdown(alert_html(PROVIDER_UNAVAILABLE_MSG, "error"), unsafe_allow_html=True)
 
     brand = get_brand_profile(session)
     default_tone = brand.tone if brand else ""
     default_cta = brand.preferred_cta if brand else ""
     availability = router.get_availability_status()
 
-    if "create_platform" not in st.session_state:
-        st.session_state.create_platform = "linkedin"
+    st.markdown(section_title("Select Platform"), unsafe_allow_html=True)
+    platform = st.selectbox(
+        "Platform",
+        PLATFORMS,
+        format_func=lambda x: PLATFORM_LABELS.get(x, x),
+        key="create_platform_select",
+    )
 
-    render_section_header("Select Platform")
-    pcols = st.columns(len(PLATFORMS))
-    for col, plat in zip(pcols, PLATFORMS):
-        with col:
-            selected = st.session_state.create_platform == plat
-            style = "border-color:#D97706;background:#FFF7ED;" if selected else ""
-            st.markdown(
-                f'<div class="cp-platform-card" style="{style}">'
-                f'<div style="font-size:1.5rem;">{PLATFORM_ICONS.get(plat, "📄")}</div>'
-                f'<div style="font-weight:600;margin-top:8px;">{PLATFORM_LABELS.get(plat, plat)}</div></div>',
-                unsafe_allow_html=True,
-            )
-            if st.button(f"Select {PLATFORM_LABELS.get(plat, plat)}", key=f"plat_{plat}", use_container_width=True):
-                st.session_state.create_platform = plat
-                st.rerun()
-
-    platform = st.session_state.create_platform
     main_col, side_col = st.columns([0.65, 0.35])
 
     with main_col:
@@ -92,17 +74,21 @@ def render(session: Session) -> None:
 
     with side_col:
         with st.container(border=True):
-            render_section_header("Brand Profile")
+            st.markdown(section_title("Brand Profile"), unsafe_allow_html=True)
             if brand:
                 st.markdown(
                     f"**{brand.company_name or 'Artixcore'}**  \n"
                     f"{brand.description[:120] + '...' if brand.description and len(brand.description) > 120 else brand.description or ''}"
                 )
-            render_section_header("Provider Status")
-            render_connector_status("OpenAI", bool(availability.get("openai")))
-            render_connector_status("Anthropic", bool(availability.get("anthropic")))
+            st.markdown(section_title("Provider Status"), unsafe_allow_html=True)
+            for name, ok in [("OpenAI", availability.get("openai")), ("Anthropic", availability.get("anthropic"))]:
+                st.markdown(
+                    f'<div class="card border rounded-3 shadow-sm mb-2 p-3 d-flex justify-content-between">'
+                    f'<span class="fw-semibold">{name}</span>{badge("Configured" if ok else "Missing", "success" if ok else "warning")}</div>',
+                    unsafe_allow_html=True,
+                )
             st.caption("All generated content requires human approval before publishing.")
-            render_section_header("Similar Posts")
+            st.markdown(section_title("Similar Posts"), unsafe_allow_html=True)
             similar = (
                 session.query(Post)
                 .filter(Post.platform == platform)
@@ -118,7 +104,7 @@ def render(session: Session) -> None:
 
     if generate:
         if not topic or not topic.strip():
-            render_alert("Topic is required. Please enter a topic for your post.", "error")
+            st.markdown(alert_html("Topic is required. Please enter a topic for your post.", "error"), unsafe_allow_html=True)
             return
 
         from core.safe_runner import safe_streamlit_action
@@ -147,7 +133,7 @@ def render(session: Session) -> None:
             show_success(f"Post saved (ID: {result.post_id}) — pending approval")
 
             with st.container(border=True):
-                render_section_header("Generated Content Preview")
+                st.markdown(section_title("Generated Content Preview"), unsafe_allow_html=True)
                 st.text_area("Content", value=result.content, height=200, disabled=True, label_visibility="collapsed")
 
                 if result.hashtags:
@@ -160,10 +146,10 @@ def render(session: Session) -> None:
                 mc1, mc2, mc3 = st.columns(3)
                 mc1.write(f"**Provider:** {result.provider_used}")
                 mc2.write(f"**Model:** {result.model_used or 'N/A'}")
-                mc3.markdown(render_status_badge("Pending Approval", "pending"), unsafe_allow_html=True)
+                mc3.markdown(badge("Pending Approval", "pending"), unsafe_allow_html=True)
 
                 if result.quality_notes:
-                    render_alert(f"Quality Notes: {result.quality_notes}", "info")
+                    st.markdown(alert_html(f"Quality Notes: {result.quality_notes}", "info"), unsafe_allow_html=True)
 
                 bc1, bc2, bc3 = st.columns(3)
                 with bc1:
@@ -172,6 +158,5 @@ def render(session: Session) -> None:
                     if st.button("Go to Approvals", key="gen_approve", use_container_width=True):
                         from ui.navigation import navigate
                         navigate("approvals")
-                        st.rerun()
                 with bc3:
                     st.button("Edit", key="gen_edit", use_container_width=True)

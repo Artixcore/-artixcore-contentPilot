@@ -11,27 +11,165 @@ from core.publishing import get_publisher_statuses
 from core.router import ProviderRouter
 from core.training_data import get_training_stats
 from providers import PROVIDER_UNAVAILABLE_MSG
-from ui.components import (
-    render_alert,
-    render_data_table_or_cards,
-    render_health_card,
-    render_metric_card,
-    render_page_header,
-    render_provider_card,
-    render_queue_card,
-    render_section_title,
-    render_status_badge,
+from ui.bootstrap_components import (
+    alert_html,
+    badge,
+    health_card,
+    html_escape,
+    page_header,
+    queue_card,
+    section_title,
 )
 
 
-def render(session: Session) -> None:
-    render_page_header(
-        "Dashboard",
-        "Overview of your content pipeline, chatbot activity, publishing connectors, and system health.",
+def _build_dashboard_html(
+    stats: dict,
+    availability: dict,
+    health_checks: list,
+    pub_statuses: dict,
+    pending_posts: list,
+) -> str:
+    total = stats["total"]
+    pending = stats["pending"]
+    published = stats["published"]
+    chat_convos = stats["chat_convos"]
+    training_total = stats["training_stats"]["total"]
+
+    metrics = f"""
+    <div class="row g-4 mb-2">
+      <div class="col-12 col-sm-6 col-xl">
+        <div class="card cp-metric-card border rounded-4 shadow-sm h-100">
+          <div class="card-body">
+            <div class="cp-metric-icon"><i class="bi bi-file-text"></i></div>
+            <div class="cp-metric-label">Total Posts</div>
+            <div class="cp-metric-value">{total}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-xl">
+        <div class="card cp-metric-card border rounded-4 shadow-sm h-100">
+          <div class="card-body">
+            <div class="cp-metric-icon"><i class="bi bi-hourglass-split"></i></div>
+            <div class="cp-metric-label">Pending Approval</div>
+            <div class="cp-metric-value">{pending}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-xl">
+        <div class="card cp-metric-card border rounded-4 shadow-sm h-100">
+          <div class="card-body">
+            <div class="cp-metric-icon"><i class="bi bi-check-circle"></i></div>
+            <div class="cp-metric-label">Published</div>
+            <div class="cp-metric-value">{published}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-xl">
+        <div class="card cp-metric-card border rounded-4 shadow-sm h-100">
+          <div class="card-body">
+            <div class="cp-metric-icon"><i class="bi bi-chat-dots"></i></div>
+            <div class="cp-metric-label">Chat Conversations</div>
+            <div class="cp-metric-value">{chat_convos}</div>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-sm-6 col-xl">
+        <div class="card cp-metric-card border rounded-4 shadow-sm h-100">
+          <div class="card-body">
+            <div class="cp-metric-icon"><i class="bi bi-bullseye"></i></div>
+            <div class="cp-metric-label">AI Training Examples</div>
+            <div class="cp-metric-value">{training_total}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+
+    alert = ""
+    if not availability.get("openai") and not availability.get("anthropic"):
+        alert = alert_html(PROVIDER_UNAVAILABLE_MSG, "error")
+
+    providers = f"""
+    <div class="row g-4">
+      <div class="col-12 col-md-6">
+        <div class="card cp-status-card border rounded-4 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <span class="fw-semibold">OpenAI</span>
+              {badge("Configured" if availability.get("openai") else "Not Configured", "success" if availability.get("openai") else "warning")}
+            </div>
+            <p class="cp-card-subtitle mb-0 mt-2">OpenAI content generation provider.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-12 col-md-6">
+        <div class="card cp-status-card border rounded-4 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start gap-2">
+              <span class="fw-semibold">Anthropic</span>
+              {badge("Configured" if availability.get("anthropic") else "Not Configured", "success" if availability.get("anthropic") else "warning")}
+            </div>
+            <p class="cp-card-subtitle mb-0 mt-2">Anthropic content generation provider.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+
+    overall = get_overall_status()
+    overall_kind = {"healthy": "success", "warning": "warning", "error": "danger"}.get(overall, "muted")
+    health_rows = "".join(
+        health_card(c["name"].replace("_", " ").title(), c["status"], c["message"])
+        for c in health_checks
     )
 
-    st.write("")
+    pub_labels = {
+        "linkedin": "LinkedIn",
+        "twitter": "X / Twitter",
+        "facebook": "Facebook",
+        "instagram": "Instagram",
+        "website_blog": "Website",
+    }
+    connector_cards = "".join(
+        f'<div class="col-12 col-md-6 col-lg-4">'
+        f'<div class="card cp-status-card border rounded-4 shadow-sm h-100"><div class="card-body">'
+        f'<div class="d-flex justify-content-between align-items-start gap-2">'
+        f'<span class="fw-semibold">{html_escape(label)}</span>'
+        f'{badge("Configured" if pub_statuses.get(key, False) else "Missing", "success" if pub_statuses.get(key, False) else "warning")}'
+        f"</div></div></div></div>"
+        for key, label in pub_labels.items()
+    )
 
+    pending_html = ""
+    if pending_posts:
+        cards = ""
+        for p in pending_posts:
+            cards += queue_card(
+                f"#{p.id} {p.platform.title()}",
+                badge(p.status.replace("_", " ").title(), "pending"),
+                p.topic[:60],
+                "Awaiting approval",
+            )
+        pending_html = section_title("Pending Tasks") + cards
+
+    return f"""
+    <div class="cp-dashboard-content">
+      {page_header("Dashboard", "Overview of your content pipeline, chatbot activity, publishing connectors, and system health.")}
+      {alert}
+      {metrics}
+      {section_title("Provider Status")}
+      {providers}
+      {section_title("System Health")}
+      <p class="mb-3">Overall: {badge(overall.title(), overall_kind)}</p>
+      <div class="row g-4">{health_rows}</div>
+      {section_title("Connector Health")}
+      <div class="row g-4">{connector_cards}</div>
+      {pending_html}
+    </div>
+    """
+
+
+def render(session: Session) -> None:
     def _dashboard_stats():
         return {
             "total": session.query(Post).count(),
@@ -42,79 +180,15 @@ def render(session: Session) -> None:
         }
 
     stats = get_or_set("dashboard_stats", _dashboard_stats)
-    total = stats["total"]
-    pending = stats["pending"]
-    published = stats["published"]
-    chat_convos = stats["chat_convos"]
-    training_stats = stats["training_stats"]
-
-    col1, col2, col3, col4, col5 = st.columns(5)
-    with col1:
-        render_metric_card("Total Posts", total, "📝")
-    with col2:
-        render_metric_card("Pending Approval", pending, "⏳")
-    with col3:
-        render_metric_card("Published", published, "✅")
-    with col4:
-        render_metric_card("Chat Conversations", chat_convos, "💬")
-    with col5:
-        render_metric_card("AI Training Examples", training_stats["total"], "🎯")
-
     router = ProviderRouter(session=session)
     availability = get_or_set("provider_status", lambda: router.get_availability_status())
-    if not availability.get("openai") and not availability.get("anthropic"):
-        render_alert(PROVIDER_UNAVAILABLE_MSG, "error")
-
-    st.write("")
-    render_section_title("Provider Status")
-
-    p1, p2 = st.columns(2)
-    with p1:
-        render_provider_card("OpenAI", bool(availability.get("openai")), "OpenAI content generation provider.")
-    with p2:
-        render_provider_card("Anthropic", bool(availability.get("anthropic")), "Anthropic content generation provider.")
-
-    st.write("")
-    render_section_title("System Health")
-
-    overall = get_overall_status()
-    overall_kind = {"healthy": "success", "warning": "warning", "error": "danger"}.get(overall, "muted")
-    st.markdown(
-        f'<p style="margin-bottom:12px;">Overall: {render_status_badge(overall.title(), overall_kind)}</p>',
-        unsafe_allow_html=True,
-    )
-
     health_checks = format_health_for_display()
-    for row_start in range(0, len(health_checks), 3):
-        hcols = st.columns(3)
-        for i, check in enumerate(health_checks[row_start : row_start + 3]):
-            with hcols[i]:
-                render_health_card(
-                    check["name"].replace("_", " ").title(),
-                    check["status"],
-                    check["message"],
-                )
-
-    st.write("")
-    render_section_title("Connector Health")
-
     pub_statuses = get_or_set("connector_status", get_publisher_statuses)
-    pub_labels = {
-        "linkedin": "LinkedIn",
-        "twitter": "X / Twitter",
-        "facebook": "Facebook",
-        "instagram": "Instagram",
-        "website_blog": "Website",
-    }
-    pub_items = list(pub_labels.items())
-    for row_start in range(0, len(pub_items), 3):
-        ch_cols = st.columns(3)
-        for i, (key, label) in enumerate(pub_items[row_start : row_start + 3]):
-            with ch_cols[i]:
-                render_provider_card(label, pub_statuses.get(key, False))
+    pending_posts = session.query(Post).filter(Post.status == "pending_approval").limit(5).all()
 
-    st.write("")
-    render_section_title("Recent Activity")
+    st.markdown(_build_dashboard_html(stats, availability, health_checks, pub_statuses, pending_posts), unsafe_allow_html=True)
+
+    st.markdown(section_title("Recent Activity"), unsafe_allow_html=True)
 
     posts = session.query(Post).order_by(Post.created_at.desc()).limit(20).all()
     if posts:
@@ -130,30 +204,27 @@ def render(session: Session) -> None:
             for p in posts
         ]
         card_view = st.toggle("Card view (mobile-friendly)", value=False, key="dash_card_view")
-        render_data_table_or_cards(
-            rows,
-            [
-                ("id", "ID"),
-                ("platform", "Platform"),
-                ("topic", "Topic"),
-                ("status", "Status"),
-                ("provider", "Provider"),
-                ("created", "Created"),
-            ],
-            use_dataframe=not card_view,
-        )
+        if card_view:
+            for row in rows:
+                cells = "".join(
+                    f'<div class="d-flex justify-content-between py-1 border-bottom">'
+                    f'<span class="text-muted small">{html_escape(lbl)}</span>'
+                    f'<span class="small fw-medium">{html_escape(str(row.get(k, "-")))}</span></div>'
+                    for k, lbl in [
+                        ("id", "ID"), ("platform", "Platform"), ("topic", "Topic"),
+                        ("status", "Status"), ("provider", "Provider"), ("created", "Created"),
+                    ]
+                )
+                st.markdown(
+                    f'<div class="card border rounded-3 shadow-sm mb-2 p-3">{cells}</div>',
+                    unsafe_allow_html=True,
+                )
+        else:
+            import pandas as pd
+            df = pd.DataFrame([{
+                "ID": r["id"], "Platform": r["platform"], "Topic": r["topic"],
+                "Status": r["status"], "Provider": r["provider"], "Created": r["created"],
+            } for r in rows])
+            st.dataframe(df, use_container_width=True, hide_index=True)
     else:
         st.info("No posts yet. Create your first post from Create Post or AI Workspace.")
-
-    pending_posts = session.query(Post).filter(Post.status == "pending_approval").limit(5).all()
-    if pending_posts:
-        st.write("")
-        render_section_title("Pending Tasks")
-        for p in pending_posts:
-            badge = render_status_badge(p.status.replace("_", " ").title(), "pending")
-            render_queue_card(
-                f"#{p.id} {p.platform.title()}",
-                badge,
-                p.topic[:60],
-                "Awaiting approval",
-            )

@@ -1,34 +1,43 @@
 (function () {
   'use strict';
 
-  function syncBodyClasses() {
-    var sidebar = document.querySelector('.cp-shell-sidebar');
-    if (sidebar) {
-      var hidden = sidebar.closest('[data-testid="column"]');
-      if (hidden && hidden.offsetParent === null) {
-        document.body.classList.add('cp-sidebar-collapsed');
-      }
-    }
+  function getShell() {
+    return document.querySelector('.cp-shell');
   }
 
-  function initMobileOverlayClose() {
+  function initMobileMenu() {
     document.addEventListener('click', function (e) {
-      if (window.innerWidth > 1024) return;
-      var sidebar = document.querySelector('.cp-shell-sidebar');
-      if (!sidebar) return;
-      var sidebarBlock = sidebar.closest('[data-testid="stVerticalBlock"]');
-      if (!sidebarBlock || sidebarBlock.offsetParent === null) return;
-      if (sidebar.contains(e.target)) return;
-      var menuBtn = document.querySelector('.cp-menu-btn');
-      if (menuBtn && menuBtn.contains(e.target)) return;
-      var toggle = document.querySelector('[data-testid="baseButton-secondary"]');
-      if (toggle && toggle.closest('.cp-menu-btn') && toggle.contains(e.target)) return;
+      var toggle = e.target.closest('#cp-menu-toggle');
+      var shell = getShell();
+      if (!shell) return;
+
+      if (toggle) {
+        e.preventDefault();
+        shell.classList.toggle('cp-sidebar-open');
+        return;
+      }
+
+      if (window.innerWidth > 1199) return;
+
+      var sidebar = document.getElementById('cp-sidebar');
+      if (!sidebar || !shell.classList.contains('cp-sidebar-open')) return;
+
+      if (!sidebar.contains(e.target) && !toggle) {
+        shell.classList.remove('cp-sidebar-open');
+      }
     });
   }
 
+  function onResize() {
+    var shell = getShell();
+    if (shell && window.innerWidth > 1199) {
+      shell.classList.remove('cp-sidebar-open');
+    }
+  }
+
   function onReady() {
-    syncBodyClasses();
-    initMobileOverlayClose();
+    initMobileMenu();
+    window.addEventListener('resize', onResize);
   }
 
   if (document.readyState === 'loading') {
@@ -36,10 +45,4 @@
   } else {
     onReady();
   }
-
-  var observer = new MutationObserver(function () {
-    syncBodyClasses();
-  });
-
-  observer.observe(document.body, { childList: true, subtree: true });
 })();

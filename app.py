@@ -7,8 +7,8 @@ from dotenv import load_dotenv
 
 from core.chat_database import seed_default_chatbot_settings
 from core.database import get_session, init_db, seed_default_brand_profile
-from ui.layout import render_app_shell
-from ui.theme import load_css
+from ui.bootstrap_layout import render_app_shell
+from ui.bootstrap_theme import inject_bootstrap_theme
 
 load_dotenv()
 
@@ -18,10 +18,10 @@ st.set_page_config(
     page_title="Artixcore ContentPilot",
     page_icon="🟠",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
 
-load_css()
+inject_bootstrap_theme()
 
 
 @st.cache_resource

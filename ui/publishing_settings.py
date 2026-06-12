@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from core.publishing import get_publisher_statuses
 from core.utils import mask_secret
-from ui.components import render_connector_status, render_page_header, render_section_header
+from ui.bootstrap_components import badge, section_title, widget_section_header
 
 PLATFORM_CONFIG = {
     "linkedin": {
@@ -50,15 +50,23 @@ PLATFORM_CONFIG = {
 
 
 def render(session: Session) -> None:
-    render_page_header("Publishing Settings", "Social platform connector status. Tokens loaded from `.env`.")
+    st.markdown(
+        widget_section_header("Publishing Settings", "Social platform connector status. Tokens loaded from `.env`."),
+        unsafe_allow_html=True,
+    )
 
     statuses = get_publisher_statuses()
 
     for platform_key, config in PLATFORM_CONFIG.items():
         configured = statuses.get(platform_key, False)
         with st.container(border=True):
-            render_connector_status(config["label"], configured)
-            render_section_header("Required Environment Variables")
+            st.markdown(
+                f'<div class="card border rounded-3 shadow-sm mb-2 p-3 d-flex justify-content-between">'
+                f'<span class="fw-semibold">{config["label"]}</span>'
+                f'{badge("Configured" if configured else "Missing", "success" if configured else "warning")}</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown(section_title("Required Environment Variables"), unsafe_allow_html=True)
             for env_name, _ in config["vars"]:
                 value = os.getenv(env_name, "")
                 if "TOKEN" in env_name or "SECRET" in env_name or "KEY" in env_name:

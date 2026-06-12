@@ -6,13 +6,7 @@ from sqlalchemy.orm import Session
 from core.models import PLATFORMS
 from core.publishing import PublishError, get_publishable_posts, get_publisher_statuses, mark_as_manually_posted, publish_post
 from core.utils import format_user_error
-from ui.components import (
-    render_connector_status,
-    render_page_header,
-    render_platform_badge,
-    render_section_header,
-    render_status_badge,
-)
+from ui.bootstrap_components import badge, platform_badge, section_title, widget_section_header
 
 PLATFORM_LABELS = {
     "facebook": "Facebook",
@@ -23,17 +17,30 @@ PLATFORM_LABELS = {
 }
 
 
+def _connector_html(label: str, configured: bool) -> str:
+    return (
+        f'<div class="card border rounded-3 shadow-sm mb-2 p-3 d-flex justify-content-between">'
+        f'<span class="fw-semibold">{label}</span>'
+        f'{badge("Configured" if configured else "Missing", "success" if configured else "warning")}</div>'
+    )
+
+
 def render(session: Session) -> None:
-    render_page_header("Publish Center", "Publish approved or scheduled posts. Human confirmation required.")
+    st.markdown(
+        widget_section_header("Publish Center", "Publish approved or scheduled posts. Human confirmation required."),
+        unsafe_allow_html=True,
+    )
 
     pub_statuses = get_publisher_statuses()
     main_col, side_col = st.columns([0.7, 0.3])
 
     with side_col:
         with st.container(border=True):
-            render_section_header("Connector Status")
-            for key, label in PLATFORM_LABELS.items():
-                render_connector_status(label, pub_statuses.get(key, False))
+            st.markdown(section_title("Connector Status"), unsafe_allow_html=True)
+            st.markdown(
+                "".join(_connector_html(label, pub_statuses.get(key, False)) for key, label in PLATFORM_LABELS.items()),
+                unsafe_allow_html=True,
+            )
 
     with main_col:
         posts = get_publishable_posts(session)
@@ -47,8 +54,8 @@ def render(session: Session) -> None:
             with st.container(border=True):
                 header = (
                     f"#{post.id} — {post.topic[:60]} "
-                    f"{render_platform_badge(post.platform)} "
-                    f"{render_status_badge(post.status.replace('_', ' ').title(), 'approved')}"
+                    f"{platform_badge(post.platform)} "
+                    f"{badge(post.status.replace('_', ' ').title(), 'approved')}"
                 )
                 st.markdown(header, unsafe_allow_html=True)
                 st.caption(

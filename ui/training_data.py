@@ -11,32 +11,29 @@ from core.training_data import (
     update_training_feedback,
 )
 from core.utils import format_user_error
-from ui.components import (
-    render_metric_card,
-    render_page_header,
-    render_section_header,
-    render_status_badge,
-)
+from ui.bootstrap_components import badge, metric_card, section_title, widget_section_header
 
 
 def render(session: Session) -> None:
-    render_page_header("Training Data", "Manage training examples for fine-tuning, RAG, and brand learning.")
+    st.markdown(
+        widget_section_header("Training Data", "Manage training examples for fine-tuning, RAG, and brand learning."),
+        unsafe_allow_html=True,
+    )
 
     stats = get_training_stats(session)
-    t1, t2, t3, t4, t5 = st.columns(5)
-    with t1:
-        render_metric_card("Total Examples", stats["total"], "◎")
-    with t2:
-        render_metric_card("Approved", stats["approved"], "✓")
-    with t3:
-        render_metric_card("Published", stats["published"], "📤")
-    with t4:
-        render_metric_card("Rejected", stats["rejected"], "✗")
-    with t5:
-        render_metric_card("Avg Quality", stats["avg_quality_score"] or "N/A", "★")
+    metrics = (
+        '<div class="row g-4 mb-3">'
+        + metric_card("Total Examples", stats["total"], "bi-collection")
+        + metric_card("Approved", stats["approved"], "bi-check-circle")
+        + metric_card("Published", stats["published"], "bi-send")
+        + metric_card("Rejected", stats["rejected"], "bi-x-circle")
+        + metric_card("Avg Quality", stats["avg_quality_score"] or "N/A", "bi-star")
+        + "</div>"
+    )
+    st.markdown(metrics, unsafe_allow_html=True)
 
     with st.container(border=True):
-        render_section_header("Export Training Data")
+        st.markdown(section_title("Export Training Data"), unsafe_allow_html=True)
         export_source = st.radio(
             "Export Source",
             ["Content posts", "Chatbot", "Both"],
@@ -67,7 +64,7 @@ def render(session: Session) -> None:
                 data = export_training_data_csv(session, include_rejected=include_rejected)
                 st.download_button("Download CSV", data=data, file_name="training_data.csv", mime="text/csv")
 
-    render_section_header("Training Examples")
+    st.markdown(section_title("Training Examples"), unsafe_allow_html=True)
     search = st.text_input("Search", placeholder="Filter by platform, status...", key="td_search")
 
     examples = get_all_training_examples(session)
@@ -85,11 +82,11 @@ def render(session: Session) -> None:
         return
 
     for ex in examples:
-        badge = render_status_badge(ex.approval_status or "unknown", ex.approval_status or "muted")
+        status_badge = badge(ex.approval_status or "unknown", ex.approval_status or "muted")
         st.markdown(
             f'<div class="cp-card" style="padding:14px 16px;">'
             f'<div style="display:flex;justify-content:space-between;">'
-            f'<strong>#{ex.id} — Post {ex.post_id} — {ex.platform}</strong> {badge}</div>'
+            f'<strong>#{ex.id} — Post {ex.post_id} — {ex.platform}</strong> {status_badge}</div>'
             f'<div style="font-size:0.8125rem;color:#6B7280;margin-top:6px;">'
             f'Quality: {ex.quality_score or "N/A"} · Used: {ex.used_for_training}</div></div>',
             unsafe_allow_html=True,

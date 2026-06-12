@@ -8,14 +8,17 @@ from sqlalchemy.orm import Session
 from core.agent import AgentValidationError, ContentPilotAgent
 from core.models import PLATFORMS, Campaign
 from core.utils import platforms_from_json, platforms_to_json
-from ui.components import render_page_header, render_section_header, render_status_badge
+from ui.bootstrap_components import badge, section_title, widget_section_header
 
 
 def render(session: Session) -> None:
-    render_page_header("Campaigns", "Plan and manage content campaigns.")
+    st.markdown(
+        widget_section_header("Campaigns", "Plan and manage content campaigns."),
+        unsafe_allow_html=True,
+    )
 
     with st.container(border=True):
-        render_section_header("Create Campaign")
+        st.markdown(section_title("Create Campaign"), unsafe_allow_html=True)
         with st.form("campaign_form"):
             name = st.text_input("Campaign Name *")
             goal = st.text_input("Goal")
@@ -58,7 +61,7 @@ def render(session: Session) -> None:
                 session.rollback()
                 st.error(f"Failed to save campaign: {type(exc).__name__}")
 
-    render_section_header("Your Campaigns")
+    st.markdown(section_title("Your Campaigns"), unsafe_allow_html=True)
     campaigns = session.query(Campaign).order_by(Campaign.created_at.desc()).all()
 
     if not campaigns:
@@ -66,10 +69,10 @@ def render(session: Session) -> None:
         return
 
     for campaign in campaigns:
-        badge = render_status_badge(campaign.status or "active", "info")
+        status_badge = badge(campaign.status or "active", "info")
         st.markdown(
             f'<div class="cp-card"><div style="display:flex;justify-content:space-between;">'
-            f'<strong>{campaign.name}</strong> {badge}</div></div>',
+            f'<strong>{campaign.name}</strong> {status_badge}</div></div>',
             unsafe_allow_html=True,
         )
         with st.expander(f"Details — {campaign.name}"):

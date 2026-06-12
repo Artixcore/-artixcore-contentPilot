@@ -5,11 +5,14 @@ from sqlalchemy.orm import Session
 
 from core.database import get_brand_profile
 from core.schemas import BrandProfileUpdate
-from ui.components import render_page_header, render_section_header
+from ui.bootstrap_components import section_title, widget_section_header
 
 
 def render(session: Session) -> None:
-    render_page_header("Brand Settings", "Configure the Artixcore brand profile used for content generation.")
+    st.markdown(
+        widget_section_header("Brand Settings", "Configure the Artixcore brand profile used for content generation."),
+        unsafe_allow_html=True,
+    )
 
     profile = get_brand_profile(session)
     if not profile:
@@ -18,7 +21,7 @@ def render(session: Session) -> None:
 
     with st.container(border=True):
         with st.form("brand_form"):
-            render_section_header("Company Profile")
+            st.markdown(section_title("Company Profile"), unsafe_allow_html=True)
             c1, c2 = st.columns(2)
             with c1:
                 company_name = st.text_input("Company Name", value=profile.company_name)
@@ -28,7 +31,7 @@ def render(session: Session) -> None:
                 description = st.text_area("Description", value=profile.description, height=100)
                 tone = st.text_area("Tone", value=profile.tone, height=80)
 
-            render_section_header("Audience & Style")
+            st.markdown(section_title("Audience & Style"), unsafe_allow_html=True)
             target_audience = st.text_area("Target Audience", value=profile.target_audience, height=80)
             services = st.text_area("Services", value=profile.services, height=80)
             preferred_cta = st.text_area("Preferred CTA", value=profile.preferred_cta, height=80)

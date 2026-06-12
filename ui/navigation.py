@@ -14,10 +14,12 @@ NAV_OPTIONS: list[tuple[str, str]] = [
     ("Chat Inbox", "chat_inbox"),
     ("Chat Control", "chat_control"),
     ("Publish Center", "publish_center"),
+    ("Campaigns", "campaigns"),
     ("Training Data", "training_data"),
     ("Provider Settings", "provider_settings"),
     ("Publishing Settings", "publishing_settings"),
     ("Brand Settings", "brand_settings"),
+    ("Integrations", "integrations"),
     ("Exports", "exports"),
 ]
 
@@ -28,6 +30,7 @@ SIDEBAR_WORKSPACES: list[str] = [
     "Artixcore",
     "Dealzyro",
     "Digitalplanup",
+    "General",
 ]
 
 PAGE_LABELS: dict[str, str] = {
@@ -62,6 +65,22 @@ def init_navigation() -> None:
 
 def navigate(page_key: str) -> None:
     st.session_state.nav_page = page_key
+    st.query_params["view"] = page_key
+    st.rerun()
+
+
+def sync_view_from_query(pages: dict) -> tuple[str, str]:
+    """Read view/workspace from query params and sync session state."""
+    view = st.query_params.get("view", "dashboard")
+    if view not in pages:
+        view = "dashboard"
+    st.session_state.nav_page = view
+
+    workspace = st.query_params.get("workspace", st.session_state.get("active_workspace", "Artixcore"))
+    if workspace not in SIDEBAR_WORKSPACES:
+        workspace = "Artixcore"
+    st.session_state.active_workspace = workspace
+    return view, workspace
 
 
 def get_current_page_label() -> str:

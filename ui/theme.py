@@ -38,14 +38,14 @@ _ASSETS_ROOT = Path(__file__).resolve().parent.parent / "assets"
 
 
 def load_css() -> None:
-    """Inject centralized stylesheet once per run."""
-    css_path = _ASSETS_ROOT / "styles" / "app.css"
-    css = css_path.read_text(encoding="utf-8")
-    st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
+    """Backward-compatible alias — delegates to Bootstrap theme."""
+    from ui.bootstrap_theme import inject_bootstrap_theme
+
+    inject_bootstrap_theme()
 
 
 def load_js() -> None:
-    """Disabled — layout uses native Streamlit primitives only."""
+    """JS is bundled inside inject_bootstrap_theme()."""
     return
 
 
