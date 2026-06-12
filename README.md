@@ -1,39 +1,22 @@
 # Artixcore ContentPilot
 
-**Artixcore ContentPilot** is a Python-based AI content agent with a Streamlit control panel. It helps Artixcore generate, review, approve, manage, and export content for Facebook, Instagram, LinkedIn, Twitter/X, and the Artixcore website.
+**Artixcore ContentPilot** is a Python-based AI content agent with a Streamlit control panel. It helps Artixcore generate, review, approve, manage, publish, and export content for Facebook, Instagram, LinkedIn, Twitter/X, and the Artixcore website.
 
-This is an **MVP v1** — local-first, modular, and designed to expand into real social publishing, scheduling, analytics, and multi-brand SaaS.
+## What It Does
 
-## Features
+- **AI content generation** — Platform-specific posts via OpenAI or Anthropic (no mock provider)
+- **Approval workflow** — Human review before any publishing
+- **Social publishing** — Real connectors for LinkedIn, X/Twitter, Facebook, Instagram, and Website API
+- **Training data** — Saves prompts, responses, edits, and feedback for future fine-tuning
+- **Local SQLite database** — Full audit trail, provider logs, and publishing logs
 
-- **Streamlit dashboard** — Overview of posts, approvals, and provider status
-- **Brand profile management** — Editable Artixcore brand voice and guidelines
-- **AI content generation** — Platform-specific posts via OpenAI, Anthropic, or Mock provider
-- **Provider router** — Auto, manual, fallback, budget, and quality modes with graceful fallback
-- **Approval workflow** — Review, edit, approve, reject, schedule, and mark as manually published
-- **Campaign planning** — Save campaigns and generate post ideas
-- **Exports** — Download posts as CSV, Markdown, or JSON
-- **SQLite storage** — Local database at `data/contentpilot.db`
-- **No API keys required** — Mock provider enables full local development
-
-## Supported Platforms
-
-| Platform | Notes |
-|----------|-------|
-| Facebook | Friendly business tone, 3–6 hashtags |
-| Instagram | Visual tone, 8–15 hashtags, image prompt |
-| LinkedIn | B2B professional, strong hook |
-| Twitter/X | Under 280 characters |
-| Website Blog | SEO title, meta, slug, outline, article, CTA |
-
-## Setup
-
-### Requirements
+## Requirements
 
 - Python 3.11+
-- pip
+- **OpenAI or Anthropic API key** (required for content generation)
+- Social platform tokens (optional, for publishing)
 
-### Install
+## Setup
 
 ```bash
 cd artixcore-contentpilot
@@ -46,27 +29,10 @@ python -m venv .venv
 source .venv/bin/activate
 
 pip install -r requirements.txt
-```
-
-### Environment Variables
-
-Copy the example file and configure as needed:
-
-```bash
 cp .env.example .env
 ```
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OPENAI_API_KEY` | OpenAI API key | (empty) |
-| `OPENAI_MODEL` | OpenAI model name | `gpt-4.1-mini` |
-| `ANTHROPIC_API_KEY` | Anthropic API key | (empty) |
-| `ANTHROPIC_MODEL` | Anthropic model name | `claude-3-5-sonnet-latest` |
-| `APP_ENV` | Environment | `development` |
-| `DATABASE_URL` | SQLite connection string | `sqlite:///data/contentpilot.db` |
-| `APP_DEBUG` | Show debug errors in UI | `false` |
-
-**Never commit your `.env` file.** API keys are read from environment variables only.
+Edit `.env` with your API keys and platform tokens. **Never commit `.env`.**
 
 ## How to Run
 
@@ -74,16 +40,13 @@ cp .env.example .env
 streamlit run app.py
 ```
 
-Open the URL shown in the terminal (typically `http://localhost:8501`).
+Open `http://localhost:8501` in your browser.
 
-### Quick Start (No API Keys)
+If no valid OpenAI or Anthropic API key is configured, the app shows:
 
-1. Run the app without configuring API keys
-2. Go to **Create Post**
-3. Select a platform and topic
-4. Set **Provider Mode** to `budget` (uses Mock)
-5. Click **Generate Post**
-6. Review in **Approvals**
+> Please provide a valid OpenAI or Anthropic API key to use Artixcore ContentPilot.
+
+Content generation is blocked until a real provider is configured.
 
 ## How to Test
 
@@ -91,70 +54,155 @@ Open the URL shown in the terminal (typically `http://localhost:8501`).
 pytest
 ```
 
-Tests cover:
+## Configure OpenAI / Anthropic
 
-- Provider router fallback behavior
-- Mock provider generation
-- Database initialization and default brand profile
-- Post creation and status updates
-- Invalid platform and empty topic handling
+```env
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4.1-mini
 
-## Provider Fallback
+ANTHROPIC_API_KEY=sk-ant-...
+ANTHROPIC_MODEL=claude-3-5-sonnet-latest
+```
 
-The router selects providers based on mode:
+### Provider Router Modes
 
-| Mode | Priority |
+| Mode | Behavior |
 |------|----------|
-| **auto** | OpenAI → Anthropic → Mock |
-| **quality** | Anthropic → OpenAI → Mock |
-| **budget** | Mock (unless a real provider is manually selected) |
-| **manual** | Selected provider → fallback chain |
-| **fallback** | Selected → any available → Mock |
+| **auto** | OpenAI → Anthropic |
+| **quality** | Anthropic → OpenAI |
+| **manual** | Selected provider only |
+| **fallback** | Selected → other available provider |
 
-If API keys are missing or API calls fail, the app falls back gracefully and **never crashes**. All provider usage is logged to the database.
+## Configure Social Platforms
+
+Tokens are configured manually in `.env`. OAuth login is not implemented yet.
+
+### LinkedIn
+
+```env
+LINKEDIN_ACCESS_TOKEN=
+LINKEDIN_AUTHOR_URN=urn:li:person:XXXX
+LINKEDIN_API_VERSION=202506
+```
+
+Posts to `POST https://api.linkedin.com/rest/posts`. Requires valid author URN and posting permission.
+
+### X / Twitter
+
+```env
+X_ACCESS_TOKEN=
+```
+
+Posts to `POST https://api.x.com/2/tweets`. Requires API access level that supports posting. Content must be ≤280 characters.
+
+### Facebook Page
+
+```env
+META_PAGE_ID=
+META_PAGE_ACCESS_TOKEN=
+META_GRAPH_VERSION=v23.0
+```
+
+Posts to Facebook Page feed via Graph API. Requires Page access token with `pages_manage_posts`.
+
+### Instagram
+
+```env
+META_IG_USER_ID=
+META_PAGE_ACCESS_TOKEN=
+META_GRAPH_VERSION=v23.0
+```
+
+Two-step image publish via Graph API. Requires Business/Creator account and a **public image URL**.
+
+### Website API
+
+```env
+WEBSITE_API_BASE_URL=https://your-cms.example.com
+WEBSITE_API_TOKEN=
+WEBSITE_POST_ENDPOINT=/api/posts
+```
+
+Publishes blog drafts to your Artixcore website CMS API.
+
+## Local Database
+
+Database path: `data/contentpilot.db` (configurable via `DATABASE_URL`).
+
+### Tables
+
+- `brand_profiles` — Artixcore brand voice
+- `posts` — Content with full AI generation metadata
+- `campaigns` — Campaign planning
+- `provider_logs` — AI provider usage (sanitized)
+- `publishing_logs` — Publish attempts and results
+- `training_examples` — Clean examples for fine-tuning
+- `content_events` — Audit trail (generated, edited, approved, published, etc.)
+- `social_accounts` — Future OAuth account storage (env references for MVP)
+- `post_analytics` — Engagement metrics (manual/future fetch)
+
+Migrations run safely on startup — missing columns are added without deleting data.
+
+## AI Training Data
+
+On generation, the app saves:
+
+- `input_prompt`, `system_prompt`
+- `raw_ai_response`, `parsed_ai_response`
+- Provider, model, latency, token estimates
+
+On approval/edit/publish, training examples are created or updated with human feedback and quality scores.
+
+### Export Training Data
+
+Use the **Training Data** or **Exports** page:
+
+- **JSONL** — OpenAI fine-tune format with system/user/assistant messages
+- **CSV** — Tabular export for analysis
+
+Rejected examples are excluded by default.
+
+## Security Notes
+
+- API keys and tokens are loaded from `.env` only — never hard-coded
+- Full secrets are never shown in the UI (masked display only)
+- Request/response payloads are sanitized before logging
+- Human approval is required before publishing
+- Manual publish click is required — no auto-publishing
+
+## Current Limitations
+
+- **No OAuth** — Tokens configured manually through `.env`
+- **Instagram** — Image posts only; requires public image URL
+- **X/Twitter** — Text only; 280 character limit enforced
+- **Production publishing** — May require platform review and approved permissions
+- **Analytics** — Table ready; platform fetch not implemented (manual entry only)
+- **Single brand profile** — Multi-brand support planned
+- **No image generation** — Image prompts are text only
+
+## Future Roadmap
+
+- OAuth flows for LinkedIn, X, Meta
+- Scheduling calendar with queue
+- Platform analytics auto-fetch
+- Image generation integration
+- Multi-brand support
+- Team approval workflow with RBAC
+- SaaS version with authentication and billing
 
 ## Project Structure
 
 ```
 artixcore-contentpilot/
-├── app.py                 # Streamlit entry point
-├── core/                  # Agent, router, database, schemas
-├── providers/             # OpenAI, Anthropic, Mock
-├── prompts/               # Brand voice and generation prompts
-├── ui/                    # Streamlit pages
-├── data/                  # SQLite database
-└── tests/                 # pytest suite
+├── app.py
+├── core/           # Agent, router, database, publishing, training data
+├── providers/      # OpenAI, Anthropic
+├── publishers/     # LinkedIn, X, Facebook, Instagram, Website
+├── prompts/        # Brand voice and generation prompts
+├── ui/             # Streamlit pages
+├── data/           # SQLite database
+└── tests/          # pytest suite
 ```
-
-## Current Limitations (MVP)
-
-- **No real social media publishing** — Posts are not posted to Facebook, Instagram, LinkedIn, Twitter/X, or any CMS
-- **Single brand profile** — Multi-brand support is planned
-- **No scheduling calendar** — Schedule status is manual metadata only
-- **No image generation** — Image prompts are text only
-- **No team approvals or RBAC** — Single-user local workflow
-- **No analytics** — No engagement or performance tracking
-
-## Future Roadmap
-
-- Facebook Graph API integration
-- Instagram Graph API integration
-- LinkedIn API integration
-- Twitter/X API integration
-- Website CMS publishing
-- Scheduling calendar with cron/queue
-- Analytics dashboard
-- Image generation (DALL·E, Stable Diffusion)
-- Multi-brand support
-- Team approval workflow with roles
-- SaaS version with authentication and billing
-
-## Security Notes
-
-- API keys are never hard-coded or printed in logs
-- Full API keys are never shown in the UI
-- Content requires human approval before marking as published
-- No auto-publishing to external platforms
 
 ## License
 

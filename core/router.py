@@ -1,22 +1,24 @@
 """Provider routing with fallback and logging."""
 
+import json
 import logging
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
 from core.models import ProviderLog
-from providers import get_all_providers
-from providers.base import BaseAIProvider, GenerationResult, ProviderError
+from core.utils import sanitize_payload
+from providers import PROVIDER_UNAVAILABLE_MSG, get_all_providers
+from providers.base import BaseAIProvider, GenerationResult, ProviderError, ProviderUnavailableError
 
 logger = logging.getLogger(__name__)
 
 
 class ProviderRouter:
-    MODES = ("manual", "auto", "fallback", "budget", "quality")
+    MODES = ("manual", "auto", "fallback", "quality")
 
-    AUTO_ORDER = ("openai", "anthropic", "mock")
-    QUALITY_ORDER = ("anthropic", "openai", "mock")
+    AUTO_ORDER = ("openai", "anthropic")
+    QUALITY_ORDER = ("anthropic", "openai")
 
     def __init__(self, session: Session | None = None):
         self.session = session
@@ -29,6 +31,9 @@ class ProviderRouter:
         provider = self.get_provider(name)
         return provider is not None and provider.is_available()
 
+    def has_any_provider(self) -> bool:
+        return any(p.is_available() for p in self.providers.values())
+
     def resolve_provider(
         self,
         mode: str = "auto",
@@ -38,24 +43,19 @@ class ProviderRouter:
         if mode not in self.MODES:
             mode = "auto"
 
-        if mode == "budget":
-            if selected_provider and selected_provider != "mock":
-                provider = self.get_provider(selected_provider)
-                if provider and provider.is_available():
-                    logger.info("Budget mode: using manually selected provider %s", selected_provider)
-                    return provider
-            logger.info("Budget mode: using mock provider")
-            return self.providers["mock"]
-
         if mode == "quality":
             provider = self._first_available(self.QUALITY_ORDER)
-            logger.info("Quality mode: resolved to %s", provider.name)
-            return provider
+            if provider:
+                logger.info("Quality mode: resolved to %s", provider.name)
+                return provider
+            raise ProviderUnavailableError(PROVIDER_UNAVAILABLE_MSG)
 
         if mode == "auto":
             provider = self._first_available(self.AUTO_ORDER)
-            logger.info("Auto mode: resolved to %s", provider.name)
-            return provider
+            if provider:
+                logger.info("Auto mode: resolved to %s", provider.name)
+                return provider
+            raise ProviderUnavailableError(PROVIDER_UNAVAILABLE_MSG)
 
         if mode == "manual":
             if selected_provider:
@@ -63,9 +63,7 @@ class ProviderRouter:
                 if provider and provider.is_available():
                     logger.info("Manual mode: using %s", selected_provider)
                     return provider
-            provider = self._first_available(self.AUTO_ORDER)
-            logger.info("Manual mode fallback: resolved to %s", provider.name)
-            return provider
+            raise ProviderUnavailableError(PROVIDER_UNAVAILABLE_MSG)
 
         if mode == "fallback":
             candidates: list[str] = []
@@ -75,17 +73,19 @@ class ProviderRouter:
                 if name not in candidates:
                     candidates.append(name)
             provider = self._first_available(candidates)
-            logger.info("Fallback mode: resolved to %s", provider.name)
-            return provider
+            if provider:
+                logger.info("Fallback mode: resolved to %s", provider.name)
+                return provider
+            raise ProviderUnavailableError(PROVIDER_UNAVAILABLE_MSG)
 
-        return self.providers["mock"]
+        raise ProviderUnavailableError(PROVIDER_UNAVAILABLE_MSG)
 
-    def _first_available(self, names: tuple[str, ...] | list[str]) -> BaseAIProvider:
+    def _first_available(self, names: tuple[str, ...] | list[str]) -> BaseAIProvider | None:
         for name in names:
             provider = self.get_provider(name)
             if provider and provider.is_available():
                 return provider
-        return self.providers["mock"]
+        return None
 
     def generate(
         self,
@@ -96,9 +96,16 @@ class ProviderRouter:
         task_type: str = "generate",
         **kwargs,
     ) -> GenerationResult:
+        if not self.has_any_provider():
+            raise ProviderUnavailableError(PROVIDER_UNAVAILABLE_MSG)
+
         mode = (mode or "auto").lower()
         chain = self._build_fallback_chain(mode, selected_provider)
         last_error: str | None = None
+
+        request_sanitized = sanitize_payload(
+            {"prompt": prompt[:500], "system_prompt": (system_prompt or "")[:500], **kwargs}
+        )
 
         for provider_name in chain:
             provider = self.get_provider(provider_name)
@@ -106,7 +113,32 @@ class ProviderRouter:
                 continue
             try:
                 result = provider.generate(prompt, system_prompt, **kwargs)
-                self._log_provider(provider.name, result.model, task_type, True, result.latency_ms)
+                if not result.text or not result.text.strip():
+                    last_error = "Model returned an empty response."
+                    self._log_provider(
+                        provider.name,
+                        result.model or provider.model_name,
+                        task_type,
+                        False,
+                        result.latency_ms,
+                        last_error,
+                        request_sanitized,
+                        None,
+                    )
+                    continue
+                response_sanitized = sanitize_payload(
+                    {"text_preview": result.text[:500], "model": result.model}
+                )
+                self._log_provider(
+                    provider.name,
+                    result.model or provider.model_name,
+                    task_type,
+                    True,
+                    result.latency_ms,
+                    None,
+                    request_sanitized,
+                    response_sanitized,
+                )
                 logger.info("Generation succeeded with provider=%s model=%s", provider.name, result.model)
                 return result
             except ProviderError as exc:
@@ -118,10 +150,12 @@ class ProviderRouter:
                     False,
                     None,
                     exc.message,
+                    request_sanitized,
+                    None,
                 )
                 logger.warning("Provider %s failed: %s", provider.name, exc.message)
             except Exception as exc:
-                last_error = type(exc).__name__
+                last_error = f"Unexpected error: {type(exc).__name__}"
                 self._log_provider(
                     provider.name,
                     provider.model_name,
@@ -129,25 +163,20 @@ class ProviderRouter:
                     False,
                     None,
                     last_error,
+                    request_sanitized,
+                    None,
                 )
-                logger.warning("Provider %s unexpected error: %s", provider.name, last_error)
+                logger.warning("Provider %s unexpected error: %s", provider.name, type(exc).__name__)
 
-        mock = self.providers["mock"]
-        result = mock.generate(prompt, system_prompt, **kwargs)
-        self._log_provider(mock.name, mock.model_name, task_type, True, result.latency_ms, last_error)
-        logger.info("All providers failed or unavailable; using mock")
-        return result
+        raise ProviderUnavailableError(
+            last_error or PROVIDER_UNAVAILABLE_MSG
+        )
 
     def _build_fallback_chain(
         self,
         mode: str,
         selected_provider: str | None,
     ) -> list[str]:
-        if mode == "budget":
-            if selected_provider and selected_provider != "mock":
-                return [selected_provider, "mock"]
-            return ["mock"]
-
         if mode == "quality":
             return list(self.QUALITY_ORDER)
 
@@ -155,12 +184,9 @@ class ProviderRouter:
             return list(self.AUTO_ORDER)
 
         if mode == "manual":
-            chain = []
+            chain: list[str] = []
             if selected_provider:
                 chain.append(selected_provider)
-            for name in self.AUTO_ORDER:
-                if name not in chain:
-                    chain.append(name)
             return chain
 
         if mode == "fallback":
@@ -182,6 +208,8 @@ class ProviderRouter:
         success: bool,
         latency_ms: int | None,
         error_message: str | None = None,
+        request_payload_sanitized: str | None = None,
+        response_payload_sanitized: str | None = None,
     ) -> None:
         if not self.session:
             return
@@ -193,6 +221,8 @@ class ProviderRouter:
                 success=success,
                 latency_ms=latency_ms,
                 error_message=error_message,
+                request_payload_sanitized=request_payload_sanitized,
+                response_payload_sanitized=response_payload_sanitized,
             )
             self.session.add(log)
             self.session.commit()

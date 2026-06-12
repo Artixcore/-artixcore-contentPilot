@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from core.models import Post
 from core.router import ProviderRouter
+from providers import PROVIDER_UNAVAILABLE_MSG
 
 
 def render(session: Session) -> None:
@@ -30,15 +31,16 @@ def render(session: Session) -> None:
     router = ProviderRouter(session=session)
     availability = router.get_availability_status()
 
-    p1, p2, p3 = st.columns(3)
+    if not availability.get("openai") and not availability.get("anthropic"):
+        st.error(PROVIDER_UNAVAILABLE_MSG)
+
+    p1, p2 = st.columns(2)
     with p1:
         status = "Available" if availability.get("openai") else "Missing API Key"
         st.info(f"**OpenAI:** {status}")
     with p2:
         status = "Available" if availability.get("anthropic") else "Missing API Key"
         st.info(f"**Anthropic:** {status}")
-    with p3:
-        st.success("**Mock:** Available")
 
     st.divider()
     st.subheader("Recent Posts")

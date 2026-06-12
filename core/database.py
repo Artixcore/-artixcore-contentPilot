@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from core.migrations import run_migrations
 from core.models import DEFAULT_BRAND, Base, BrandProfile
 
 load_dotenv()
@@ -62,7 +63,8 @@ def session_scope():
 
 
 def init_db() -> None:
-    Base.metadata.create_all(bind=get_engine())
+    engine = get_engine()
+    run_migrations(engine)
 
 
 def reset_engine(database_url: str | None = None) -> None:

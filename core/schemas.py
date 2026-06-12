@@ -29,7 +29,6 @@ class ProviderMode(str, Enum):
     MANUAL = "manual"
     AUTO = "auto"
     FALLBACK = "fallback"
-    BUDGET = "budget"
     QUALITY = "quality"
 
 

@@ -9,9 +9,9 @@ from core.agent import ContentPilotAgent
 from core.approvals import (
     approve_post,
     get_pending_posts,
-    mark_published,
     regenerate_post,
     reject_post,
+    save_feedback,
     schedule_post,
     update_content,
 )
@@ -44,6 +44,23 @@ def render(session: Session) -> None:
                 key=f"tags_{post.id}",
             )
 
+            reject_reason = st.text_input(
+                "Rejection reason (optional)",
+                key=f"reject_reason_{post.id}",
+            )
+            feedback = st.text_area(
+                "Manual feedback",
+                value=post.manual_feedback or "",
+                key=f"feedback_{post.id}",
+            )
+            quality_score = st.slider(
+                "Quality score (1-10)",
+                min_value=1,
+                max_value=10,
+                value=post.training_score or 5,
+                key=f"quality_{post.id}",
+            )
+
             if post.image_prompt:
                 st.write(f"**Image Prompt:** {post.image_prompt}")
             st.caption(
@@ -52,7 +69,7 @@ def render(session: Session) -> None:
             if post.quality_notes:
                 st.caption(f"Quality: {post.quality_notes}")
 
-            b1, b2, b3, b4, b5, b6 = st.columns(6)
+            b1, b2, b3, b4, b5 = st.columns(5)
 
             with b1:
                 if st.button("Save Edit", key=f"save_{post.id}"):
@@ -64,7 +81,16 @@ def render(session: Session) -> None:
                         st.error(msg)
 
             with b2:
+                if st.button("Save Feedback", key=f"save_fb_{post.id}"):
+                    ok, msg = save_feedback(session, post.id, feedback, quality_score)
+                    if ok:
+                        st.success(msg)
+                    else:
+                        st.error(msg)
+
+            with b3:
                 if st.button("Approve", key=f"approve_{post.id}", type="primary"):
+                    save_feedback(session, post.id, feedback, quality_score)
                     ok, msg = approve_post(session, post.id)
                     if ok:
                         st.success(msg)
@@ -72,16 +98,16 @@ def render(session: Session) -> None:
                     else:
                         st.error(msg)
 
-            with b3:
+            with b4:
                 if st.button("Reject", key=f"reject_{post.id}"):
-                    ok, msg = reject_post(session, post.id)
+                    ok, msg = reject_post(session, post.id, reject_reason)
                     if ok:
                         st.warning(msg)
                         st.rerun()
                     else:
                         st.error(msg)
 
-            with b4:
+            with b5:
                 if st.button("Regenerate", key=f"regen_{post.id}"):
                     with st.spinner("Regenerating..."):
                         agent = ContentPilotAgent(session)
@@ -92,20 +118,10 @@ def render(session: Session) -> None:
                         else:
                             st.error(msg)
 
-            with b5:
-                if st.button("Schedule", key=f"schedule_{post.id}"):
-                    ok, msg = schedule_post(session, post.id, datetime.utcnow())
-                    if ok:
-                        st.success(msg)
-                        st.rerun()
-                    else:
-                        st.error(msg)
-
-            with b6:
-                if st.button("Mark Published", key=f"publish_{post.id}"):
-                    ok, msg = mark_published(session, post.id)
-                    if ok:
-                        st.success(msg)
-                        st.rerun()
-                    else:
-                        st.error(msg)
+            if st.button("Schedule", key=f"schedule_{post.id}"):
+                ok, msg = schedule_post(session, post.id, datetime.utcnow())
+                if ok:
+                    st.success(msg)
+                    st.rerun()
+                else:
+                    st.error(msg)

@@ -6,7 +6,9 @@ from sqlalchemy.orm import Session
 from core.agent import AgentValidationError, ContentPilotAgent
 from core.database import get_brand_profile
 from core.models import PLATFORMS
+from core.router import ProviderRouter
 from core.utils import format_user_error
+from providers import PROVIDER_UNAVAILABLE_MSG
 
 
 PLATFORM_LABELS = {
@@ -17,13 +19,17 @@ PLATFORM_LABELS = {
     "website_blog": "Website Blog",
 }
 
-PROVIDER_MODES = ["auto", "manual", "fallback", "budget", "quality"]
-PROVIDERS = ["openai", "anthropic", "mock"]
+PROVIDER_MODES = ["auto", "manual", "fallback", "quality"]
+PROVIDERS = ["openai", "anthropic"]
 
 
 def render(session: Session) -> None:
     st.title("Create Post")
     st.caption("Generate AI-powered content for your selected platform.")
+
+    router = ProviderRouter(session=session)
+    if not router.has_any_provider():
+        st.error(PROVIDER_UNAVAILABLE_MSG)
 
     brand = get_brand_profile(session)
     default_tone = brand.tone if brand else ""
@@ -46,11 +52,11 @@ def render(session: Session) -> None:
         selected_provider = st.selectbox(
             "Selected Provider",
             PROVIDERS,
-            index=2,
+            index=0,
             help="Used in manual and fallback modes.",
         )
 
-    generate = st.button("Generate Post", type="primary")
+    generate = st.button("Generate Post", type="primary", disabled=not router.has_any_provider())
 
     if generate:
         if not topic or not topic.strip():
@@ -68,7 +74,7 @@ def render(session: Session) -> None:
                     language=language,
                     cta=cta or "",
                     provider_mode=provider_mode,
-                    selected_provider=selected_provider if provider_mode in ("manual", "fallback", "budget") else None,
+                    selected_provider=selected_provider if provider_mode in ("manual", "fallback") else None,
                 )
                 st.success(f"Post saved to database (ID: {result.post_id}) — status: pending_approval")
 

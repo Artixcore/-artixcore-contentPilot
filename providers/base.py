@@ -1,7 +1,7 @@
 """Base AI provider abstraction."""
 
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 
 class ProviderError(Exception):
@@ -13,6 +13,16 @@ class ProviderError(Exception):
         self.message = message
 
 
+class ProviderUnavailableError(Exception):
+    """Raised when no real AI provider is configured."""
+
+    def __init__(self, message: str | None = None):
+        from providers import PROVIDER_UNAVAILABLE_MSG
+
+        super().__init__(message or PROVIDER_UNAVAILABLE_MSG)
+        self.message = message or PROVIDER_UNAVAILABLE_MSG
+
+
 @dataclass
 class GenerationResult:
     text: str
@@ -21,6 +31,9 @@ class GenerationResult:
     latency_ms: Optional[int] = None
     success: bool = True
     error_message: Optional[str] = None
+    token_input_estimate: Optional[int] = None
+    token_output_estimate: Optional[int] = None
+    raw_response: Optional[dict[str, Any]] = field(default=None)
 
 
 class BaseAIProvider:

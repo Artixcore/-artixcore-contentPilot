@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from core.models import ProviderLog
 from core.router import ProviderRouter
 from core.utils import mask_secret
+from providers import PROVIDER_UNAVAILABLE_MSG
 
 
 def render(session: Session) -> None:
@@ -17,8 +18,11 @@ def render(session: Session) -> None:
     router = ProviderRouter(session=session)
     availability = router.get_availability_status()
 
+    if not availability.get("openai") and not availability.get("anthropic"):
+        st.error(PROVIDER_UNAVAILABLE_MSG)
+
     st.subheader("Provider Status")
-    c1, c2, c3 = st.columns(3)
+    c1, c2 = st.columns(2)
 
     with c1:
         if availability.get("openai"):
@@ -35,11 +39,6 @@ def render(session: Session) -> None:
             st.warning("Anthropic: Missing API Key")
         st.caption(f"Model: {os.getenv('ANTHROPIC_MODEL', 'claude-3-5-sonnet-latest')}")
         st.caption(f"Key: {mask_secret(os.getenv('ANTHROPIC_API_KEY', ''))}")
-
-    with c3:
-        st.success("Mock: Available")
-        st.caption("No API key required.")
-        st.caption("Always available for local development.")
 
     st.divider()
     st.subheader("Configuration")
@@ -65,11 +64,10 @@ ANTHROPIC_MODEL=claude-3-5-sonnet-latest
         """
 | Mode | Behavior |
 |------|----------|
-| **auto** | OpenAI → Anthropic → Mock |
-| **quality** | Anthropic → OpenAI → Mock |
-| **budget** | Mock (unless a real provider is manually selected) |
-| **manual** | Selected provider → fallback chain |
-| **fallback** | Selected → any available → Mock |
+| **auto** | OpenAI → Anthropic |
+| **quality** | Anthropic → OpenAI |
+| **manual** | Selected provider only (must be available) |
+| **fallback** | Selected → other available provider |
         """
     )
 

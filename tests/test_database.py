@@ -1,6 +1,8 @@
 """Tests for database initialization and models."""
 
-from core.database import get_brand_profile, seed_default_brand_profile
+from sqlalchemy import inspect
+
+from core.database import get_brand_profile, get_engine, init_db, seed_default_brand_profile
 from core.models import DEFAULT_BRAND, Post
 
 
@@ -33,8 +35,8 @@ def test_post_creation(db_session):
         content="Test content for LinkedIn.",
         hashtags='["Artixcore", "SaaS"]',
         status="pending_approval",
-        provider_used="mock",
-        model_used="mock-v1",
+        provider_used="openai",
+        model_used="gpt-4.1-mini",
     )
     db_session.add(post)
     db_session.commit()
@@ -61,3 +63,32 @@ def test_post_status_update(db_session):
     db_session.commit()
     db_session.refresh(post)
     assert post.status == "approved"
+
+
+def test_training_tables_created(db_session):
+    engine = get_engine()
+    inspector = inspect(engine)
+    tables = inspector.get_table_names()
+    for table in (
+        "training_examples",
+        "publishing_logs",
+        "content_events",
+        "social_accounts",
+        "post_analytics",
+    ):
+        assert table in tables
+
+
+def test_posts_has_training_fields(db_session):
+    engine = get_engine()
+    inspector = inspect(engine)
+    columns = {col["name"] for col in inspector.get_columns("posts")}
+    for field in (
+        "input_prompt",
+        "system_prompt",
+        "raw_ai_response",
+        "external_post_id",
+        "training_score",
+        "revision_count",
+    ):
+        assert field in columns

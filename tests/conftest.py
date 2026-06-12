@@ -24,3 +24,24 @@ def db_session() -> Session:
     yield session
     session.close()
     reset_engine(db_module.DATABASE_URL)
+
+
+@pytest.fixture
+def approved_post(db_session) -> "Post":
+    from core.models import Post
+
+    post = Post(
+        platform="linkedin",
+        topic="Test topic",
+        content="Approved content ready to publish.",
+        status="approved",
+        provider_used="openai",
+        model_used="gpt-4.1-mini",
+        input_prompt="Generate post",
+        system_prompt="Brand voice",
+        raw_ai_response='{"content": "draft"}',
+    )
+    db_session.add(post)
+    db_session.commit()
+    db_session.refresh(post)
+    return post

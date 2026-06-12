@@ -118,3 +118,58 @@ def format_user_error(message: str, exc: Exception | None = None) -> str:
     if APP_DEBUG and exc:
         return f"{message}\n\nDebug: {type(exc).__name__}: {exc}"
     return message
+
+
+SENSITIVE_KEYS = frozenset({
+    "authorization",
+    "access_token",
+    "refresh_token",
+    "api_key",
+    "api_secret",
+    "client_secret",
+    "token",
+    "password",
+    "secret",
+})
+
+
+def sanitize_payload(data: object) -> str:
+    """Strip sensitive fields before logging."""
+
+    def _redact(obj: object) -> object:
+        if isinstance(obj, dict):
+            return {
+                k: "****" if str(k).lower() in SENSITIVE_KEYS or "token" in str(k).lower() else _redact(v)
+                for k, v in obj.items()
+            }
+        if isinstance(obj, list):
+            return [_redact(item) for item in obj]
+        return obj
+
+    try:
+        return json.dumps(_redact(data), ensure_ascii=False, default=str)
+    except (TypeError, ValueError):
+        return "{}"
+
+
+def has_any_ai_provider() -> bool:
+    from providers import get_all_providers
+
+    return any(p.is_available() for p in get_all_providers().values())
+
+
+def log_content_event(
+    session,
+    post_id: int,
+    event_type: str,
+    event_data: dict | None = None,
+) -> None:
+    from core.models import ContentEvent
+
+    event = ContentEvent(
+        post_id=post_id,
+        event_type=event_type,
+        event_data=json.dumps(event_data or {}, ensure_ascii=False),
+    )
+    session.add(event)
+    session.flush()

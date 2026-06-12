@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 
 from core.agent import ContentPilotAgent
 from core.models import POST_STATUSES, Post
-from core.utils import hashtags_from_json, hashtags_to_json
+from core.training_data import create_training_example_from_post, update_training_feedback
+from core.utils import hashtags_from_json, hashtags_to_json, log_content_event
 
 
 class ApprovalError(Exception):
@@ -22,15 +23,21 @@ def _get_post(session: Session, post_id: int) -> Post:
     return post
 
 
-def _validate_status(status: str) -> None:
-    if status not in POST_STATUSES:
-        raise ApprovalError(f"Invalid status: {status}")
-
-
-def approve_post(session: Session, post_id: int) -> tuple[bool, str]:
+def approve_post(
+    session: Session,
+    post_id: int,
+    approved_by: str = "user",
+) -> tuple[bool, str]:
     try:
         post = _get_post(session, post_id)
         post.status = "approved"
+        post.approved_at = datetime.now(timezone.utc)
+        post.approved_by = approved_by
+        from core.training_data import update_training_on_approval
+
+        create_training_example_from_post(session, post_id)
+        update_training_on_approval(session, post_id, "approved")
+        log_content_event(session, post_id, "approved", {"approved_by": approved_by})
         session.commit()
         return True, "Post approved successfully."
     except ApprovalError as exc:
@@ -45,10 +52,16 @@ def reject_post(session: Session, post_id: int, reason: str = "") -> tuple[bool,
         post = _get_post(session, post_id)
         post.status = "rejected"
         if reason:
+            post.rejected_reason = reason
             note = f"Rejected: {reason}"
             post.quality_notes = (
                 f"{post.quality_notes}\n{note}" if post.quality_notes else note
             )
+        create_training_example_from_post(session, post_id)
+        from core.training_data import update_training_on_approval
+
+        update_training_on_approval(session, post_id, "rejected")
+        log_content_event(session, post_id, "rejected", {"reason": reason})
         session.commit()
         return True, "Post rejected."
     except ApprovalError as exc:
@@ -65,6 +78,7 @@ def schedule_post(
         post = _get_post(session, post_id)
         post.status = "scheduled"
         post.scheduled_at = scheduled_at or datetime.now(timezone.utc)
+        log_content_event(session, post_id, "scheduled", {})
         session.commit()
         return True, "Post marked as scheduled."
     except ApprovalError as exc:
@@ -72,20 +86,6 @@ def schedule_post(
     except Exception:
         session.rollback()
         return False, "Failed to schedule post. Please try again."
-
-
-def mark_published(session: Session, post_id: int) -> tuple[bool, str]:
-    try:
-        post = _get_post(session, post_id)
-        post.status = "published"
-        post.published_at = datetime.now(timezone.utc)
-        session.commit()
-        return True, "Post marked as published (manual post)."
-    except ApprovalError as exc:
-        return False, exc.message
-    except Exception:
-        session.rollback()
-        return False, "Failed to mark post as published. Please try again."
 
 
 def update_content(
@@ -101,6 +101,13 @@ def update_content(
         post.content = content.strip()
         if hashtags is not None:
             post.hashtags = hashtags_to_json(hashtags)
+        post.revision_count = (post.revision_count or 0) + 1
+        log_content_event(
+            session,
+            post_id,
+            "edited",
+            {"revision_count": post.revision_count},
+        )
         session.commit()
         return True, "Post content updated."
     except ApprovalError as exc:
@@ -108,6 +115,25 @@ def update_content(
     except Exception:
         session.rollback()
         return False, "Failed to update post. Please try again."
+
+
+def save_feedback(
+    session: Session,
+    post_id: int,
+    human_feedback: str | None = None,
+    quality_score: int | None = None,
+) -> tuple[bool, str]:
+    try:
+        update_training_feedback(session, post_id, human_feedback, quality_score)
+        session.commit()
+        return True, "Feedback saved."
+    except Exception as exc:
+        session.rollback()
+        from core.training_data import TrainingDataError
+
+        if isinstance(exc, TrainingDataError):
+            return False, exc.message
+        return False, "Failed to save feedback."
 
 
 def regenerate_post(

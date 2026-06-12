@@ -1,5 +1,6 @@
 """ContentPilot AI agent for post and campaign generation."""
 
+import json
 import logging
 
 from sqlalchemy.orm import Session
@@ -12,8 +13,11 @@ from core.utils import (
     get_platform_rules,
     hashtags_to_json,
     load_prompt,
+    log_content_event,
     parse_json_response,
 )
+from providers import PROVIDER_UNAVAILABLE_MSG
+from providers.base import ProviderUnavailableError
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +35,10 @@ class ContentPilotAgent:
         self.session = session
         self.router = ProviderRouter(session=session)
 
+    def _require_provider(self) -> None:
+        if not self.router.has_any_provider():
+            raise AgentValidationError(PROVIDER_UNAVAILABLE_MSG)
+
     def generate_post(
         self,
         platform: str,
@@ -42,6 +50,8 @@ class ContentPilotAgent:
         provider_mode: str = "auto",
         selected_provider: str | None = None,
     ) -> GeneratedPost:
+        self._require_provider()
+
         platform = (platform or "").strip().lower()
         topic = (topic or "").strip()
 
@@ -70,17 +80,26 @@ class ContentPilotAgent:
             brand=brand,
         )
 
-        result = self.router.generate(
-            prompt=user_prompt,
-            system_prompt=system_prompt,
-            mode=provider_mode,
-            selected_provider=selected_provider,
-            task_type="generate_post",
-            platform=platform,
-            topic=topic,
-        )
+        temperature = 0.7
+        max_tokens = 4096
+
+        try:
+            result = self.router.generate(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                mode=provider_mode,
+                selected_provider=selected_provider,
+                task_type="generate_post",
+                platform=platform,
+                topic=topic,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except ProviderUnavailableError as exc:
+            raise AgentValidationError(exc.message) from exc
 
         parsed = parse_json_response(result.text)
+        parsed_json_str = None
         if parsed:
             content = str(parsed.get("content", ""))
             hashtags = parsed.get("hashtags") or []
@@ -89,11 +108,12 @@ class ContentPilotAgent:
             hashtags = [str(h).lstrip("#") for h in hashtags]
             image_prompt = parsed.get("image_prompt")
             quality_notes = parsed.get("quality_notes")
+            parsed_json_str = json.dumps(parsed, ensure_ascii=False)
         else:
             content = result.text
             hashtags = []
             image_prompt = None
-            quality_notes = "Response was not valid JSON; raw content saved for review."
+            quality_notes = "Model returned invalid JSON. Raw output saved."
 
         quality_notes = self._run_quality_check(
             content=content,
@@ -117,8 +137,24 @@ class ContentPilotAgent:
             provider_used=result.provider,
             model_used=result.model,
             quality_notes=quality_notes,
+            input_prompt=user_prompt,
+            system_prompt=system_prompt,
+            raw_ai_response=result.text,
+            parsed_ai_response=parsed_json_str,
+            generation_temperature=temperature,
+            generation_max_tokens=max_tokens,
+            provider_latency_ms=result.latency_ms,
+            token_input_estimate=result.token_input_estimate,
+            token_output_estimate=result.token_output_estimate,
         )
         self.session.add(post)
+        self.session.flush()
+        log_content_event(
+            self.session,
+            post.id,
+            "generated",
+            {"platform": platform, "provider": result.provider, "model": result.model},
+        )
         self.session.commit()
         self.session.refresh(post)
 
@@ -136,6 +172,8 @@ class ContentPilotAgent:
         )
 
     def generate_campaign_ideas(self, campaign_id: int) -> CampaignIdeas:
+        self._require_provider()
+
         campaign = self.session.get(Campaign, campaign_id)
         if not campaign:
             raise AgentValidationError(f"Campaign {campaign_id} not found.")
@@ -155,12 +193,15 @@ class ContentPilotAgent:
             f"Posts per week: {campaign.posts_per_week}\n"
         )
 
-        result = self.router.generate(
-            prompt=user_prompt,
-            system_prompt=system_prompt,
-            mode="auto",
-            task_type="campaign_planner",
-        )
+        try:
+            result = self.router.generate(
+                prompt=user_prompt,
+                system_prompt=system_prompt,
+                mode="auto",
+                task_type="campaign_planner",
+            )
+        except ProviderUnavailableError as exc:
+            raise AgentValidationError(exc.message) from exc
 
         parsed = parse_json_response(result.text)
         ideas = []
@@ -251,7 +292,7 @@ class ContentPilotAgent:
         if existing_notes:
             combined = f"{existing_notes} | {rule_notes}"
 
-        if provider_mode == "budget" or (selected_provider == "mock"):
+        if not self.router.has_any_provider():
             return combined
 
         checker = load_prompt("quality_checker.md")
@@ -262,14 +303,12 @@ class ContentPilotAgent:
             result = self.router.generate(
                 prompt=check_prompt,
                 system_prompt="You are a concise content quality reviewer for Artixcore.",
-                mode="budget",
+                mode="auto",
                 task_type="quality_check",
             )
-            if result.text and result.provider == "mock":
-                return combined
             if result.text:
                 return f"{combined} | Review: {result.text[:500]}"
-        except Exception as exc:
+        except (ProviderUnavailableError, Exception) as exc:
             logger.warning("Quality check skipped: %s", type(exc).__name__)
 
         return combined

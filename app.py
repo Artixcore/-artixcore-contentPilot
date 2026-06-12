@@ -6,7 +6,18 @@ import streamlit as st
 from dotenv import load_dotenv
 
 from core.database import get_session, init_db, seed_default_brand_profile
-from ui import approvals, brand_settings, campaigns, create_post, dashboard, exports, provider_settings
+from ui import (
+    approvals,
+    brand_settings,
+    campaigns,
+    create_post,
+    dashboard,
+    exports,
+    provider_settings,
+    publish_center,
+    publishing_settings,
+    training_data,
+)
 
 load_dotenv()
 
@@ -51,6 +62,9 @@ PAGES = {
     "Approvals": approvals.render,
     "Campaigns": campaigns.render,
     "Provider Settings": provider_settings.render,
+    "Publishing Settings": publishing_settings.render,
+    "Publish Center": publish_center.render,
+    "Training Data": training_data.render,
     "Exports": exports.render,
 }
 
@@ -60,7 +74,7 @@ with st.sidebar:
     st.divider()
     selection = st.radio("Navigation", list(PAGES.keys()), label_visibility="collapsed")
     st.divider()
-    st.caption("MVP v1 — Local-first content workflow")
+    st.caption("Artixcore ContentPilot — local-first workflow")
 
 session = get_session()
 try:
