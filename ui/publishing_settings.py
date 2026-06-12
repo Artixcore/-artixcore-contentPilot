@@ -56,17 +56,16 @@ def render(session: Session) -> None:
 
     for platform_key, config in PLATFORM_CONFIG.items():
         configured = statuses.get(platform_key, False)
-        st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-        render_connector_status(config["label"], configured)
-        render_section_header("Required Environment Variables")
-        for env_name, _ in config["vars"]:
-            value = os.getenv(env_name, "")
-            if "TOKEN" in env_name or "SECRET" in env_name or "KEY" in env_name:
-                display = mask_secret(value)
-            else:
-                display = value or "Not set"
-            st.caption(f"`{env_name}`: {display}")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            render_connector_status(config["label"], configured)
+            render_section_header("Required Environment Variables")
+            for env_name, _ in config["vars"]:
+                value = os.getenv(env_name, "")
+                if "TOKEN" in env_name or "SECRET" in env_name or "KEY" in env_name:
+                    display = mask_secret(value)
+                else:
+                    display = value or "Not set"
+                st.caption(f"`{env_name}`: {display}")
 
     st.info(
         "OAuth login is not implemented yet. Configure access tokens manually in `.env`. "

@@ -147,4 +147,4 @@ def render(session: Session) -> None:
                 with st.expander(f"Details — #{post.id}", expanded=True):
                     _render_post_detail(session, post)
 
-        st.markdown("<div style='margin-bottom:16px;'></div>", unsafe_allow_html=True)
+        st.write("")

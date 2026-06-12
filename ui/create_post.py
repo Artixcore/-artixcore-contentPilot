@@ -91,35 +91,30 @@ def render(session: Session) -> None:
         generate = st.button("Generate Post", type="primary", disabled=not router.has_any_provider())
 
     with side_col:
-        st.markdown('<div class="cp-card-panel">', unsafe_allow_html=True)
-        render_section_header("Brand Profile")
-        if brand:
-            st.markdown(
-                f"**{brand.company_name or 'Artixcore'}**  \n"
-                f"{brand.description[:120] + '...' if brand.description and len(brand.description) > 120 else brand.description or ''}"
+        with st.container(border=True):
+            render_section_header("Brand Profile")
+            if brand:
+                st.markdown(
+                    f"**{brand.company_name or 'Artixcore'}**  \n"
+                    f"{brand.description[:120] + '...' if brand.description and len(brand.description) > 120 else brand.description or ''}"
+                )
+            render_section_header("Provider Status")
+            render_connector_status("OpenAI", bool(availability.get("openai")))
+            render_connector_status("Anthropic", bool(availability.get("anthropic")))
+            st.caption("All generated content requires human approval before publishing.")
+            render_section_header("Similar Posts")
+            similar = (
+                session.query(Post)
+                .filter(Post.platform == platform)
+                .order_by(Post.created_at.desc())
+                .limit(3)
+                .all()
             )
-        render_section_header("Provider Status")
-        render_connector_status("OpenAI", bool(availability.get("openai")))
-        render_connector_status("Anthropic", bool(availability.get("anthropic")))
-        st.markdown(
-            '<p style="font-size:0.8125rem;color:#6B7280;margin-top:12px;">'
-            "All generated content requires human approval before publishing.</p>",
-            unsafe_allow_html=True,
-        )
-        render_section_header("Similar Posts")
-        similar = (
-            session.query(Post)
-            .filter(Post.platform == platform)
-            .order_by(Post.created_at.desc())
-            .limit(3)
-            .all()
-        )
-        if similar:
-            for p in similar:
-                st.caption(f"#{p.id} — {p.topic[:40]}")
-        else:
-            st.caption("No similar posts yet.")
-        st.markdown("</div>", unsafe_allow_html=True)
+            if similar:
+                for p in similar:
+                    st.caption(f"#{p.id} — {p.topic[:40]}")
+            else:
+                st.caption("No similar posts yet.")
 
     if generate:
         if not topic or not topic.strip():
@@ -151,33 +146,32 @@ def render(session: Session) -> None:
         if result:
             show_success(f"Post saved (ID: {result.post_id}) — pending approval")
 
-            st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-            render_section_header("Generated Content Preview")
-            st.text_area("Content", value=result.content, height=200, disabled=True, label_visibility="collapsed")
+            with st.container(border=True):
+                render_section_header("Generated Content Preview")
+                st.text_area("Content", value=result.content, height=200, disabled=True, label_visibility="collapsed")
 
-            if result.hashtags:
-                tags = " ".join(f"#{h.lstrip('#')}" for h in result.hashtags)
-                st.write(f"**Hashtags:** {tags}")
+                if result.hashtags:
+                    tags = " ".join(f"#{h.lstrip('#')}" for h in result.hashtags)
+                    st.write(f"**Hashtags:** {tags}")
 
-            if result.image_prompt:
-                st.write(f"**Image Prompt:** {result.image_prompt}")
+                if result.image_prompt:
+                    st.write(f"**Image Prompt:** {result.image_prompt}")
 
-            mc1, mc2, mc3 = st.columns(3)
-            mc1.write(f"**Provider:** {result.provider_used}")
-            mc2.write(f"**Model:** {result.model_used or 'N/A'}")
-            mc3.markdown(render_status_badge("Pending Approval", "pending"), unsafe_allow_html=True)
+                mc1, mc2, mc3 = st.columns(3)
+                mc1.write(f"**Provider:** {result.provider_used}")
+                mc2.write(f"**Model:** {result.model_used or 'N/A'}")
+                mc3.markdown(render_status_badge("Pending Approval", "pending"), unsafe_allow_html=True)
 
-            if result.quality_notes:
-                render_alert(f"Quality Notes: {result.quality_notes}", "info")
+                if result.quality_notes:
+                    render_alert(f"Quality Notes: {result.quality_notes}", "info")
 
-            bc1, bc2, bc3 = st.columns(3)
-            with bc1:
-                st.button("Save", key="gen_save", disabled=True, use_container_width=True)
-            with bc2:
-                if st.button("Go to Approvals", key="gen_approve", use_container_width=True):
-                    from ui.navigation import navigate
-                    navigate("approvals")
-                    st.rerun()
-            with bc3:
-                st.button("Edit", key="gen_edit", use_container_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+                bc1, bc2, bc3 = st.columns(3)
+                with bc1:
+                    st.button("Save", key="gen_save", disabled=True, use_container_width=True)
+                with bc2:
+                    if st.button("Go to Approvals", key="gen_approve", use_container_width=True):
+                        from ui.navigation import navigate
+                        navigate("approvals")
+                        st.rerun()
+                with bc3:
+                    st.button("Edit", key="gen_edit", use_container_width=True)

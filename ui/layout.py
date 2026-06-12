@@ -23,7 +23,7 @@ from ui import (
     publishing_settings,
     training_data,
 )
-from ui.components import render_icon_rail, render_sidebar, render_topbar
+from ui.components import render_sidebar, render_topbar
 from ui.navigation import init_navigation
 
 PageRenderer = Callable[[Session], None]
@@ -49,35 +49,10 @@ PAGES: dict[str, PageRenderer] = {
 def render_app_shell(session: Session) -> None:
     """Render navigation shell and current page content."""
     init_navigation()
+    render_sidebar()
+    render_topbar()
+    st.divider()
 
-    st.markdown('<div class="cp-page-bg">', unsafe_allow_html=True)
-
-    sidebar_visible = st.session_state.sidebar_open
-    if sidebar_visible:
-        shell = st.columns([0.041, 0.179, 0.78], gap="small")
-    else:
-        shell = st.columns([0.041, 0.959], gap="small")
-
-    with shell[0]:
-        st.markdown('<div class="cp-shell-rail cp-icon-rail">', unsafe_allow_html=True)
-        render_icon_rail()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    main_idx = 2 if sidebar_visible else 1
-
-    if sidebar_visible:
-        with shell[1]:
-            st.markdown('<div class="cp-shell-sidebar cp-sidebar">', unsafe_allow_html=True)
-            render_sidebar()
-            st.markdown("</div>", unsafe_allow_html=True)
-
-    with shell[main_idx]:
-        st.markdown('<div class="cp-shell-main cp-main">', unsafe_allow_html=True)
-        render_topbar()
-        st.markdown('<div class="cp-content-area"><div class="cp-content-inner">', unsafe_allow_html=True)
-        page_key = st.session_state.nav_page
-        renderer = PAGES.get(page_key, dashboard.render)
-        renderer(session)
-        st.markdown("</div></div></div>", unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)
+    page_key = st.session_state.nav_page
+    renderer = PAGES.get(page_key, dashboard.render)
+    renderer(session)

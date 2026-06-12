@@ -30,11 +30,10 @@ def render(session: Session) -> None:
     main_col, side_col = st.columns([0.7, 0.3])
 
     with side_col:
-        st.markdown('<div class="cp-card-panel">', unsafe_allow_html=True)
-        render_section_header("Connector Status")
-        for key, label in PLATFORM_LABELS.items():
-            render_connector_status(label, pub_statuses.get(key, False))
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            render_section_header("Connector Status")
+            for key, label in PLATFORM_LABELS.items():
+                render_connector_status(label, pub_statuses.get(key, False))
 
     with main_col:
         posts = get_publishable_posts(session)
@@ -45,95 +44,94 @@ def render(session: Session) -> None:
         st.markdown(f"**{len(posts)}** post(s) ready to publish.")
 
         for post in posts:
-            st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-            header = (
-                f"#{post.id} — {post.topic[:60]} "
-                f"{render_platform_badge(post.platform)} "
-                f"{render_status_badge(post.status.replace('_', ' ').title(), 'approved')}"
-            )
-            st.markdown(header, unsafe_allow_html=True)
-            st.caption(
-                f"Provider: {post.provider_used or 'N/A'} · "
-                f"Created: {post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at else 'N/A'}"
-            )
-            st.text_area(
-                "Content Preview",
-                value=post.content[:500],
-                height=120,
-                disabled=True,
-                key=f"preview_{post.id}",
-                label_visibility="collapsed",
-            )
-
-            target_platform = st.selectbox(
-                "Target publish platform",
-                options=list(PLATFORMS),
-                format_func=lambda x: PLATFORM_LABELS.get(x, x),
-                key=f"platform_{post.id}",
-            )
-
-            image_url = ""
-            if target_platform == "instagram":
-                image_url = st.text_input(
-                    "Public Image URL (required for Instagram)",
-                    key=f"image_{post.id}",
-                    placeholder="https://example.com/image.jpg",
+            with st.container(border=True):
+                header = (
+                    f"#{post.id} — {post.topic[:60]} "
+                    f"{render_platform_badge(post.platform)} "
+                    f"{render_status_badge(post.status.replace('_', ' ').title(), 'approved')}"
+                )
+                st.markdown(header, unsafe_allow_html=True)
+                st.caption(
+                    f"Provider: {post.provider_used or 'N/A'} · "
+                    f"Created: {post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at else 'N/A'}"
+                )
+                st.text_area(
+                    "Content Preview",
+                    value=post.content[:500],
+                    height=120,
+                    disabled=True,
+                    key=f"preview_{post.id}",
+                    label_visibility="collapsed",
                 )
 
-            confirmed = st.checkbox(
-                "I confirm this content is approved and ready to publish",
-                key=f"confirm_{post.id}",
-            )
+                target_platform = st.selectbox(
+                    "Target publish platform",
+                    options=list(PLATFORMS),
+                    format_func=lambda x: PLATFORM_LABELS.get(x, x),
+                    key=f"platform_{post.id}",
+                )
 
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button(
-                    "Publish",
-                    key=f"publish_{post.id}",
-                    type="primary",
-                    disabled=not confirmed,
-                    use_container_width=True,
-                ):
-                    from core.safe_runner import safe_streamlit_action
-                    from ui.loading import loading_spinner
-                    from ui.notifications import show_error_from_dict, show_success
+                image_url = ""
+                if target_platform == "instagram":
+                    image_url = st.text_input(
+                        "Public Image URL (required for Instagram)",
+                        key=f"image_{post.id}",
+                        placeholder="https://example.com/image.jpg",
+                    )
 
-                    with loading_spinner(f"Publishing to {target_platform.replace('_', ' ').title()}..."):
-                        outcome = safe_streamlit_action(
-                            "publish_post",
-                            publish_post,
-                            session,
-                            post.id,
-                            target_platform,
-                            image_url=image_url if target_platform == "instagram" else None,
-                            load_type="publish",
-                        )
-                    if not outcome.get("success"):
-                        show_error_from_dict(outcome.get("error") or {})
-                    else:
-                        result = outcome.get("result") or {}
-                        if result.get("success"):
-                            show_success(f"Published! ID: {result.get('external_post_id', 'N/A')}")
-                            if result.get("external_post_url"):
-                                st.write(f"URL: {result['external_post_url']}")
+                confirmed = st.checkbox(
+                    "I confirm this content is approved and ready to publish",
+                    key=f"confirm_{post.id}",
+                )
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button(
+                        "Publish",
+                        key=f"publish_{post.id}",
+                        type="primary",
+                        disabled=not confirmed,
+                        use_container_width=True,
+                    ):
+                        from core.safe_runner import safe_streamlit_action
+                        from ui.loading import loading_spinner
+                        from ui.notifications import show_error_from_dict, show_success
+
+                        with loading_spinner(f"Publishing to {target_platform.replace('_', ' ').title()}..."):
+                            outcome = safe_streamlit_action(
+                                "publish_post",
+                                publish_post,
+                                session,
+                                post.id,
+                                target_platform,
+                                image_url=image_url if target_platform == "instagram" else None,
+                                load_type="publish",
+                            )
+                        if not outcome.get("success"):
+                            show_error_from_dict(outcome.get("error") or {})
+                        else:
+                            result = outcome.get("result") or {}
+                            if result.get("success"):
+                                show_success(f"Published! ID: {result.get('external_post_id', 'N/A')}")
+                                if result.get("external_post_url"):
+                                    st.write(f"URL: {result['external_post_url']}")
+                                st.rerun()
+                            else:
+                                show_error_from_dict({
+                                    "message": "Publish failed.",
+                                    "reason": result.get("error", "Unknown error"),
+                                    "user_action": "Check publishing settings and try again.",
+                                    "error_code": "PUBLISHING_ERROR",
+                                })
+
+                with col2:
+                    if st.button("Mark Manually Posted", key=f"manual_{post.id}", use_container_width=True):
+                        ok, msg = mark_as_manually_posted(session, post.id, target_platform)
+                        if ok:
+                            st.success(msg)
                             st.rerun()
                         else:
-                            show_error_from_dict({
-                                "message": "Publish failed.",
-                                "reason": result.get("error", "Unknown error"),
-                                "user_action": "Check publishing settings and try again.",
-                                "error_code": "PUBLISHING_ERROR",
-                            })
+                            st.error(msg)
 
-            with col2:
-                if st.button("Mark Manually Posted", key=f"manual_{post.id}", use_container_width=True):
-                    ok, msg = mark_as_manually_posted(session, post.id, target_platform)
-                    if ok:
-                        st.success(msg)
-                        st.rerun()
-                    else:
-                        st.error(msg)
-
-            if post.publish_error:
-                st.warning(f"Last publish error: {post.publish_error}")
-            st.markdown("</div>", unsafe_allow_html=True)
+                if post.publish_error:
+                    st.warning(f"Last publish error: {post.publish_error}")

@@ -12,6 +12,8 @@ from providers import PROVIDER_UNAVAILABLE_MSG
 from ui.components import (
     render_chat_message,
     render_date_divider,
+    render_section_title,
+    render_template_card,
     render_welcome_hero,
 )
 from ui.navigation import navigate
@@ -133,47 +135,37 @@ def render(session: Session) -> None:
                 show_actions=msg["role"] != "user",
             )
 
-    st.markdown('<div class="cp-chat-input-area">', unsafe_allow_html=True)
+    with st.container(border=True):
+        prompt = st.text_area(
+            "Prompt",
+            placeholder="Ask ContentPilot to create, reply, plan, or publish...",
+            key="workspace_prompt",
+            label_visibility="collapsed",
+            height=80,
+        )
 
-    prompt = st.text_area(
-        "Prompt",
-        placeholder="Ask ContentPilot to create, reply, plan, or publish...",
-        key="workspace_prompt",
-        label_visibility="collapsed",
-        height=80,
-    )
+        bc1, bc2, bc3, bc4 = st.columns([1, 1, 1, 2])
+        with bc1:
+            st.button("📎 Attach", key="ws_attach", use_container_width=True)
+        with bc2:
+            st.button("🖼 Upload Media", key="ws_upload", use_container_width=True)
+        with bc3:
+            if st.button("Clear Chat", key="ws_clear", use_container_width=True):
+                st.session_state.chat_messages = []
+                st.rerun()
+        with bc4:
+            send = st.button("Send →", key="ws_send", type="primary", use_container_width=True)
 
-    bc1, bc2, bc3, bc4 = st.columns([1, 1, 1, 2])
-    with bc1:
-        st.button("📎 Attach", key="ws_attach", use_container_width=True)
-    with bc2:
-        st.button("🖼 Upload Media", key="ws_upload", use_container_width=True)
-    with bc3:
-        if st.button("Clear Chat", key="ws_clear", use_container_width=True):
-            st.session_state.chat_messages = []
+        if send and prompt.strip():
+            _handle_prompt(session, prompt.strip(), router)
             st.rerun()
-    with bc4:
-        send = st.button("Send →", key="ws_send", type="primary", use_container_width=True)
-
-    if send and prompt.strip():
-        _handle_prompt(session, prompt.strip(), router)
-        st.rerun()
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
     if not messages:
-        st.markdown(
-            '<div class="cp-section-title" style="margin-top:24px;">Start with a template</div>',
-            unsafe_allow_html=True,
-        )
+        render_section_title("Start with a template")
         tc = st.columns(2)
         for i, template in enumerate(TEMPLATES):
             with tc[i % 2]:
-                st.markdown(
-                    f'<div class="cp-template-card"><span>📝</span>'
-                    f'<div class="cp-template-text">{template}</div></div>',
-                    unsafe_allow_html=True,
-                )
+                render_template_card(template, description="Click to use this prompt")
                 if st.button("Use template →", key=f"tpl_{i}", use_container_width=True):
                     _handle_prompt(session, template, router)
                     st.rerun()

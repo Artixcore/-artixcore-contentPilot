@@ -96,8 +96,8 @@ def render(session: Session) -> None:
     list_col, thread_col = st.columns([0.35, 0.65])
 
     with list_col:
-        st.markdown('<div class="cp-inbox-list">', unsafe_allow_html=True)
-        render_section_header("Conversations")
+        with st.container(border=True):
+            render_section_header("Conversations")
         for conv in conversations:
             active = st.session_state.inbox_selected_id == conv.id
             item_cls = "cp-inbox-item active" if active else "cp-inbox-item"
@@ -115,95 +115,93 @@ def render(session: Session) -> None:
             if st.button(f"Open #{conv.id}", key=f"open_conv_{conv.id}", use_container_width=True):
                 st.session_state.inbox_selected_id = conv.id
                 st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
     selected_id = st.session_state.inbox_selected_id
     conv = next((c for c in conversations if c.id == selected_id), conversations[0])
     messages = get_conversation_messages(session, conv.id)
 
     with thread_col:
-        st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-        st.markdown(
-            f"**{conv.user_display_name or 'Guest'}** · "
-            f"{render_platform_badge(conv.platform)} · "
-            f"{render_status_badge(conv.status, 'info')}",
-            unsafe_allow_html=True,
-        )
+        with st.container(border=True):
+            st.markdown(
+                f"**{conv.user_display_name or 'Guest'}** · "
+                f"{render_platform_badge(conv.platform)} · "
+                f"{render_status_badge(conv.status, 'info')}",
+                unsafe_allow_html=True,
+            )
 
-        for msg in messages:
-            text = msg.message_text or msg.ai_generated_reply or msg.final_reply or ""
-            if msg.sender_type == "user":
-                render_chat_message("user", text)
-            else:
-                render_chat_message("assistant", text, provider=msg.provider_used or "")
-
-                if msg.sender_type == "bot" and msg.ai_generated_reply:
-                    if msg.safety_notes:
-                        st.warning(f"Safety: {msg.safety_notes}")
-
-                    edited = st.text_area(
-                        "Final Reply Editor",
-                        value=msg.final_reply or msg.ai_generated_reply or "",
-                        key=f"edit_{msg.id}",
-                    )
-                    fb = st.text_input("Human Feedback", value="", key=f"fb_{msg.id}")
-                    score = st.slider("Quality Score", 1, 10, 5, key=f"score_{msg.id}")
-
-                    b1, b2, b3, b4 = st.columns(4)
-                    with b1:
-                        if st.button("Approve & Send", key=f"approve_{msg.id}", type="primary"):
-                            msg.final_reply = edited
-                            session.flush()
-                            ok, message = approve_message(session, msg.id)
-                            st.success(message) if ok else st.error(message)
-                            st.rerun()
-                    with b2:
-                        if st.button("Reject", key=f"reject_{msg.id}"):
-                            ok, message = reject_message_service(session, msg.id, reason="Rejected from inbox")
-                            st.success(message) if ok else st.error(message)
-                            st.rerun()
-                    with b3:
-                        if st.button("Regenerate", key=f"regen_{msg.id}"):
-                            if not router.has_any_provider():
-                                render_alert(CHATBOT_PROVIDER_UNAVAILABLE_MSG, "error")
-                            else:
-                                result = regenerate_message(session, msg.id)
-                                st.success("Regenerated.") if result.success else st.error(result.error or "Failed")
-                                st.rerun()
-                    with b4:
-                        if st.button("Save Feedback", key=f"save_fb_{msg.id}"):
-                            ok, message = save_message_feedback(session, msg.id, fb or None, score)
-                            st.success(message) if ok else st.error(message)
-                            st.rerun()
-
-        render_section_header("Manual Reply")
-        manual_text = st.text_area("Manual reply text", key="manual_reply", label_visibility="collapsed")
-        mc1, mc2, mc3 = st.columns(3)
-        with mc1:
-            if st.button("Send Manual Reply", use_container_width=True):
-                if not manual_text.strip():
-                    st.warning("Enter reply text.")
+            for msg in messages:
+                text = msg.message_text or msg.ai_generated_reply or msg.final_reply or ""
+                if msg.sender_type == "user":
+                    render_chat_message("user", text)
                 else:
-                    try:
-                        agent = ArtixcoreChatbotAgent(session)
-                        msg_id = agent.send_manual_reply(conv.id, conv.platform, manual_text.strip())
-                        result = send_reply(session, conv.platform, conv.id, msg_id, manual_text.strip())
-                        session.commit()
-                        st.success("Manual reply saved.") if result.get("success") else st.warning(
-                            f"Saved locally. Platform send: {result.get('error', 'failed')}"
+                    render_chat_message("assistant", text, provider=msg.provider_used or "")
+
+                    if msg.sender_type == "bot" and msg.ai_generated_reply:
+                        if msg.safety_notes:
+                            st.warning(f"Safety: {msg.safety_notes}")
+
+                        edited = st.text_area(
+                            "Final Reply Editor",
+                            value=msg.final_reply or msg.ai_generated_reply or "",
+                            key=f"edit_{msg.id}",
                         )
-                        st.rerun()
-                    except Exception as exc:
-                        session.rollback()
-                        render_alert(format_user_error("Manual reply failed.", exc), "error")
-        with mc2:
-            if st.button("Human Handoff", use_container_width=True):
-                ok, message = handoff_conversation(session, conv.id)
-                st.success(message) if ok else st.error(message)
-                st.rerun()
-        with mc3:
-            if st.button("Close Conversation", use_container_width=True):
-                ok, message = close_conversation(session, conv.id)
-                st.success(message) if ok else st.error(message)
-                st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+                        fb = st.text_input("Human Feedback", value="", key=f"fb_{msg.id}")
+                        score = st.slider("Quality Score", 1, 10, 5, key=f"score_{msg.id}")
+
+                        b1, b2, b3, b4 = st.columns(4)
+                        with b1:
+                            if st.button("Approve & Send", key=f"approve_{msg.id}", type="primary"):
+                                msg.final_reply = edited
+                                session.flush()
+                                ok, message = approve_message(session, msg.id)
+                                st.success(message) if ok else st.error(message)
+                                st.rerun()
+                        with b2:
+                            if st.button("Reject", key=f"reject_{msg.id}"):
+                                ok, message = reject_message_service(session, msg.id, reason="Rejected from inbox")
+                                st.success(message) if ok else st.error(message)
+                                st.rerun()
+                        with b3:
+                            if st.button("Regenerate", key=f"regen_{msg.id}"):
+                                if not router.has_any_provider():
+                                    render_alert(CHATBOT_PROVIDER_UNAVAILABLE_MSG, "error")
+                                else:
+                                    result = regenerate_message(session, msg.id)
+                                    st.success("Regenerated.") if result.success else st.error(result.error or "Failed")
+                                    st.rerun()
+                        with b4:
+                            if st.button("Save Feedback", key=f"save_fb_{msg.id}"):
+                                ok, message = save_message_feedback(session, msg.id, fb or None, score)
+                                st.success(message) if ok else st.error(message)
+                                st.rerun()
+
+            render_section_header("Manual Reply")
+            manual_text = st.text_area("Manual reply text", key="manual_reply", label_visibility="collapsed")
+            mc1, mc2, mc3 = st.columns(3)
+            with mc1:
+                if st.button("Send Manual Reply", use_container_width=True):
+                    if not manual_text.strip():
+                        st.warning("Enter reply text.")
+                    else:
+                        try:
+                            agent = ArtixcoreChatbotAgent(session)
+                            msg_id = agent.send_manual_reply(conv.id, conv.platform, manual_text.strip())
+                            result = send_reply(session, conv.platform, conv.id, msg_id, manual_text.strip())
+                            session.commit()
+                            st.success("Manual reply saved.") if result.get("success") else st.warning(
+                                f"Saved locally. Platform send: {result.get('error', 'failed')}"
+                            )
+                            st.rerun()
+                        except Exception as exc:
+                            session.rollback()
+                            render_alert(format_user_error("Manual reply failed.", exc), "error")
+            with mc2:
+                if st.button("Human Handoff", use_container_width=True):
+                    ok, message = handoff_conversation(session, conv.id)
+                    st.success(message) if ok else st.error(message)
+                    st.rerun()
+            with mc3:
+                if st.button("Close Conversation", use_container_width=True):
+                    ok, message = close_conversation(session, conv.id)
+                    st.success(message) if ok else st.error(message)
+                    st.rerun()

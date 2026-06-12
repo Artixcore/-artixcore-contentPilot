@@ -24,9 +24,9 @@ from core.utils import format_user_error, mask_secret
 from ui.components import (
     render_alert,
     render_connector_status,
-    render_metrics_grid,
+    render_metric_card,
     render_page_header,
-    render_section_header,
+    render_section_title,
 )
 
 
@@ -43,133 +43,130 @@ def render(session: Session) -> None:
     if not router.has_any_provider():
         render_alert(CHATBOT_PROVIDER_UNAVAILABLE_MSG, "error")
 
-    render_metrics_grid([
-        ("Auto Reply", "ON" if stats["auto_reply_enabled"] else "OFF", "⚡"),
-        ("Approval Mode", "ON" if stats["approval_required"] else "OFF", "✓"),
-        ("Human Handoff", "ON" if stats["human_handoff_enabled"] else "OFF", "👤"),
-        ("Pending Replies", stats["pending_replies"], "⏳"),
-        ("Open Conversations", stats["open_conversations"], "💬"),
-        ("Telegram", "Running" if tg_status["running"] else ("Ready" if tg_status["configured"] else "Off"), "📱"),
-    ])
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    with m1:
+        render_metric_card("Auto Reply", "ON" if stats["auto_reply_enabled"] else "OFF", "⚡")
+    with m2:
+        render_metric_card("Approval Mode", "ON" if stats["approval_required"] else "OFF", "✓")
+    with m3:
+        render_metric_card("Human Handoff", "ON" if stats["human_handoff_enabled"] else "OFF", "👤")
+    with m4:
+        render_metric_card("Pending Replies", stats["pending_replies"], "⏳")
+    with m5:
+        render_metric_card("Open Conversations", stats["open_conversations"], "💬")
+    with m6:
+        tg_label = "Running" if tg_status["running"] else ("Ready" if tg_status["configured"] else "Off")
+        render_metric_card("Telegram", tg_label, "📱")
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-        render_section_header("Chatbot Identity")
-        chatbot_name = st.text_input("Chatbot Name", value=settings.chatbot_name, key="cc_name")
-        personality = st.selectbox(
-            "Personality Type",
-            PERSONALITY_TYPES,
-            index=PERSONALITY_TYPES.index(settings.personality_type) if settings.personality_type in PERSONALITY_TYPES else 0,
-            key="cc_personality",
-        )
-        gender = st.selectbox(
-            "Gender Style",
-            GENDER_STYLES,
-            index=GENDER_STYLES.index(settings.gender_style) if settings.gender_style in GENDER_STYLES else 2,
-            key="cc_gender",
-        )
-        language = st.selectbox(
-            "Language",
-            LANGUAGES,
-            index=LANGUAGES.index(settings.language) if settings.language in LANGUAGES else 0,
-            key="cc_language",
-        )
-        custom_personality = st.text_area(
-            "Custom Personality Prompt",
-            value=settings.custom_personality_prompt or "",
-            key="cc_custom",
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-        render_section_header("Behavior")
-        auto_reply = st.toggle("Enable Auto Reply", value=settings.auto_reply_enabled, key="cc_auto")
-        approval_required = st.toggle("Require Approval Before Sending", value=settings.approval_required, key="cc_approval")
-        human_handoff = st.toggle("Enable Human Handoff", value=settings.human_handoff_enabled, key="cc_handoff")
-        tone = st.selectbox(
-            "Tone",
-            TONES,
-            index=TONES.index(settings.tone) if settings.tone in TONES else 0,
-            key="cc_tone",
-        )
-        reply_length = st.selectbox(
-            "Reply Length",
-            REPLY_LENGTHS,
-            index=REPLY_LENGTHS.index(settings.reply_length) if settings.reply_length in REPLY_LENGTHS else 1,
-            key="cc_length",
-        )
-        emoji_usage = st.selectbox(
-            "Emoji Usage",
-            EMOJI_USAGES,
-            index=EMOJI_USAGES.index(settings.emoji_usage) if settings.emoji_usage in EMOJI_USAGES else 1,
-            key="cc_emoji",
-        )
-        cta_style = st.selectbox(
-            "CTA Style",
-            CTA_STYLES,
-            index=CTA_STYLES.index(settings.cta_style) if settings.cta_style in CTA_STYLES else 3,
-            key="cc_cta",
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
-
+        with st.container(border=True):
+            render_section_title("Chatbot Identity")
+            chatbot_name = st.text_input("Chatbot Name", value=settings.chatbot_name, key="cc_name")
+            personality = st.selectbox(
+                "Personality Type",
+                PERSONALITY_TYPES,
+                index=PERSONALITY_TYPES.index(settings.personality_type) if settings.personality_type in PERSONALITY_TYPES else 0,
+                key="cc_personality",
+            )
+            gender = st.selectbox(
+                "Gender Style",
+                GENDER_STYLES,
+                index=GENDER_STYLES.index(settings.gender_style) if settings.gender_style in GENDER_STYLES else 2,
+                key="cc_gender",
+            )
+            language = st.selectbox(
+                "Language",
+                LANGUAGES,
+                index=LANGUAGES.index(settings.language) if settings.language in LANGUAGES else 0,
+                key="cc_language",
+            )
+            custom_personality = st.text_area(
+                "Custom Personality Prompt",
+                value=settings.custom_personality_prompt or "",
+                key="cc_custom",
+            )
+        with st.container(border=True):
+            render_section_title("Behavior")
+            auto_reply = st.toggle("Enable Auto Reply", value=settings.auto_reply_enabled, key="cc_auto")
+            approval_required = st.toggle("Require Approval Before Sending", value=settings.approval_required, key="cc_approval")
+            human_handoff = st.toggle("Enable Human Handoff", value=settings.human_handoff_enabled, key="cc_handoff")
+            tone = st.selectbox(
+                "Tone",
+                TONES,
+                index=TONES.index(settings.tone) if settings.tone in TONES else 0,
+                key="cc_tone",
+            )
+            reply_length = st.selectbox(
+                "Reply Length",
+                REPLY_LENGTHS,
+                index=REPLY_LENGTHS.index(settings.reply_length) if settings.reply_length in REPLY_LENGTHS else 1,
+                key="cc_length",
+            )
+            emoji_usage = st.selectbox(
+                "Emoji Usage",
+                EMOJI_USAGES,
+                index=EMOJI_USAGES.index(settings.emoji_usage) if settings.emoji_usage in EMOJI_USAGES else 1,
+                key="cc_emoji",
+            )
+            cta_style = st.selectbox(
+                "CTA Style",
+                CTA_STYLES,
+                index=CTA_STYLES.index(settings.cta_style) if settings.cta_style in CTA_STYLES else 3,
+                key="cc_cta",
+            )
     with col2:
-        st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-        render_section_header("Safety")
-        blocked_keywords = st.text_area(
-            "Blocked Keywords (one per line)",
-            value="\n".join(blocked),
-            key="cc_blocked",
-        )
-        fallback_message = st.text_area(
-            "Fallback Message",
-            value=settings.fallback_message or "",
-            key="cc_fallback",
-        )
-        business_hours_enabled = st.toggle(
-            "Enable Business Hours",
-            value=settings.business_hours_enabled,
-            key="cc_bh_enabled",
-        )
-        bh1, bh2 = st.columns(2)
-        with bh1:
-            business_hours_start = st.text_input(
-                "Start (HH:MM UTC)",
-                value=settings.business_hours_start or "09:00",
-                key="cc_bh_start",
+        with st.container(border=True):
+            render_section_title("Safety")
+            blocked_keywords = st.text_area(
+                "Blocked Keywords (one per line)",
+                value="\n".join(blocked),
+                key="cc_blocked",
             )
-        with bh2:
-            business_hours_end = st.text_input(
-                "End (HH:MM UTC)",
-                value=settings.business_hours_end or "17:00",
-                key="cc_bh_end",
+            fallback_message = st.text_area(
+                "Fallback Message",
+                value=settings.fallback_message or "",
+                key="cc_fallback",
             )
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-        render_section_header("Telegram Controller")
-        tg_configured = tg_status.get("configured", False)
-        render_connector_status(
-            "Telegram Bot",
-            tg_configured,
-            f"Status: {'Running' if tg_status.get('running') else 'Ready' if tg_configured else 'Off'}",
-        )
-        st.caption(f"Token: {mask_secret(os.getenv('TELEGRAM_BOT_TOKEN', ''))}")
-        st.caption(f"Admin IDs: {tg_status['admin_count']} configured")
-        st.caption(f"Pending replies: {stats['pending_replies']}")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-        render_section_header("Platform Connectors")
-        availability = router.get_availability_status()
-        render_connector_status("OpenAI", bool(availability.get("openai")), mask_secret(os.getenv("OPENAI_API_KEY", "")))
-        render_connector_status("Anthropic", bool(availability.get("anthropic")), mask_secret(os.getenv("ANTHROPIC_API_KEY", "")))
-        for platform in CHAT_PLATFORMS:
-            ch = channels.get(platform)
-            configured = bool(ch and ch.configured)
-            render_connector_status(platform.title(), configured, ch.message if ch else "Not configured")
-        st.markdown("</div>", unsafe_allow_html=True)
+            business_hours_enabled = st.toggle(
+                "Enable Business Hours",
+                value=settings.business_hours_enabled,
+                key="cc_bh_enabled",
+            )
+            bh1, bh2 = st.columns(2)
+            with bh1:
+                business_hours_start = st.text_input(
+                    "Start (HH:MM UTC)",
+                    value=settings.business_hours_start or "09:00",
+                    key="cc_bh_start",
+                )
+            with bh2:
+                business_hours_end = st.text_input(
+                    "End (HH:MM UTC)",
+                    value=settings.business_hours_end or "17:00",
+                    key="cc_bh_end",
+                )
+        with st.container(border=True):
+            render_section_title("Telegram Controller")
+            tg_configured = tg_status.get("configured", False)
+            render_connector_status(
+                "Telegram Bot",
+                tg_configured,
+                f"Status: {'Running' if tg_status.get('running') else 'Ready' if tg_configured else 'Off'}",
+            )
+            st.caption(f"Token: {mask_secret(os.getenv('TELEGRAM_BOT_TOKEN', ''))}")
+            st.caption(f"Admin IDs: {tg_status['admin_count']} configured")
+            st.caption(f"Pending replies: {stats['pending_replies']}")
+        with st.container(border=True):
+            render_section_title("Platform Connectors")
+            availability = router.get_availability_status()
+            render_connector_status("OpenAI", bool(availability.get("openai")), mask_secret(os.getenv("OPENAI_API_KEY", "")))
+            render_connector_status("Anthropic", bool(availability.get("anthropic")), mask_secret(os.getenv("ANTHROPIC_API_KEY", "")))
+            for platform in CHAT_PLATFORMS:
+                ch = channels.get(platform)
+                configured = bool(ch and ch.configured)
+                render_connector_status(platform.title(), configured, ch.message if ch else "Not configured")
 
     if st.button("Save Chat Control Settings", type="primary", use_container_width=True):
         try:

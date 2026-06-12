@@ -8,21 +8,20 @@ from typing import Any
 import streamlit as st
 
 from ui.navigation import (
-    ICON_RAIL,
-    SIDEBAR_PRIMARY,
-    SIDEBAR_SYSTEM,
+    NAV_LABELS,
     SIDEBAR_WORKSPACES,
-    get_current_page_label,
+    current_nav_label,
+    key_for_label,
     navigate,
 )
-from ui.theme import PRIMARY, TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY
+from ui.theme import TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY
 
 
 def _esc(text: str | None) -> str:
     return html.escape(str(text or ""))
 
 
-def render_page_header(title: str, subtitle: str = "") -> None:
+def render_page_header(title: str, subtitle: str | None = None) -> None:
     sub = f'<p class="cp-page-subtitle">{_esc(subtitle)}</p>' if subtitle else ""
     st.markdown(
         f'<h1 class="cp-page-title">{_esc(title)}</h1>{sub}',
@@ -30,17 +29,21 @@ def render_page_header(title: str, subtitle: str = "") -> None:
     )
 
 
-def render_section_header(title: str) -> None:
-    st.markdown(f'<div class="cp-section-title">{_esc(title)}</div>', unsafe_allow_html=True)
-
-
 def render_section_title(title: str, subtitle: str | None = None) -> None:
-    render_section_header(title)
+    st.markdown(
+        f'<div class="cp-section-label">{_esc(title)}</div>',
+        unsafe_allow_html=True,
+    )
     if subtitle:
         st.markdown(
-            f'<p style="font-size:0.8125rem;color:{TEXT_SECONDARY};margin:-4px 0 12px 0;">{_esc(subtitle)}</p>',
+            f'<p style="font-size:0.875rem;color:{TEXT_SECONDARY};margin:-8px 0 14px 0;">{_esc(subtitle)}</p>',
             unsafe_allow_html=True,
         )
+
+
+def render_section_header(title: str) -> None:
+    """Backward-compatible alias."""
+    render_section_title(title)
 
 
 def render_card(
@@ -52,7 +55,6 @@ def render_card(
     content_html: str | None = None,
     panel: bool = False,
 ) -> None:
-    """Render a card. Supports legacy content_html/panel kwargs."""
     if content_html is not None:
         cls = "cp-card-panel" if panel else "cp-card"
         st.markdown(f'<div class="{cls}">{content_html}</div>', unsafe_allow_html=True)
@@ -69,191 +71,202 @@ def render_card(
     )
 
 
-def render_metric_card(
-    label: str,
-    value: str | int,
-    icon: str = "",
-    status: str | None = None,
-) -> str:
-    icon_html = f'<div class="cp-metric-icon">{icon}</div>' if icon else ""
-    status_html = ""
-    if status:
-        status_html = f'<div style="margin-top:auto;">{render_status_badge(status)}</div>'
-    return f"""
-    <div class="cp-metric-card">
-        {icon_html}
-        <div class="cp-metric-label">{_esc(label)}</div>
-        <div class="cp-metric-value">{_esc(str(value))}</div>
-        {status_html}
-    </div>
-    """
-
-
-def render_metrics_grid(metrics: list[tuple[str, str | int, str]]) -> None:
-    """Responsive HTML grid for dashboard metric cards."""
-    items = "".join(render_metric_card(label, value, icon) for label, value, icon in metrics)
-    n = len(metrics)
-    if n <= 5:
-        grid_cls = "cp-dashboard-grid"
-    else:
-        grid_cls = f"cp-grid cp-grid-{min(n, 6)}"
-    st.markdown(f'<div class="{grid_cls}">{items}</div>', unsafe_allow_html=True)
-
-
-def render_metrics_row(metrics: list[tuple[str, str | int, str]]) -> None:
-    """Backward-compatible alias — prefers CSS grid."""
-    render_metrics_grid(metrics)
-
-
-def render_status_badge(status: str, kind: str = "muted") -> str:
-    kind_map = {
-        "success": "cp-badge-success",
-        "configured": "cp-badge-success",
-        "approved": "cp-badge-success",
-        "published": "cp-badge-success",
-        "warning": "cp-badge-warning",
-        "pending": "cp-badge-warning",
-        "missing": "cp-badge-warning",
-        "danger": "cp-badge-danger",
-        "rejected": "cp-badge-danger",
-        "info": "cp-badge-info",
-    }
-    cls = kind_map.get(kind.lower(), "cp-badge-muted")
-    return f'<span class="cp-badge {cls}">{_esc(status)}</span>'
-
-
-def render_action_button(label: str, key: str, icon: str | None = None, variant: str = "primary") -> bool:
-    wrap_cls = "cp-btn-primary" if variant == "primary" else "cp-btn-secondary"
-    text = f"{icon} {label}".strip() if icon else label
-    st.markdown(f'<div class="{wrap_cls}">', unsafe_allow_html=True)
-    clicked = st.button(text, key=key, type="primary" if variant == "primary" else "secondary")
-    st.markdown("</div>", unsafe_allow_html=True)
-    return clicked
-
-
-def _nav_button(key: str, label: str, css_class: str = "cp-sidebar-nav") -> None:
-    active = st.session_state.nav_page == key
-    wrap_cls = f"{css_class}{' active' if active else ''}"
-    st.markdown(f'<div class="{wrap_cls}">', unsafe_allow_html=True)
-    if st.button(label, key=f"nav_{key}", use_container_width=True):
-        navigate(key)
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def render_icon_rail(active_page: str | None = None) -> None:
-    page = active_page or st.session_state.nav_page
-    st.markdown(
-        '<div class="cp-logo-mark" style="width:38px;height:38px;font-size:0.875rem;margin-bottom:8px;">A</div>',
-        unsafe_allow_html=True,
-    )
-    for page_key, icon, tooltip in ICON_RAIL:
-        active = page == page_key
-        wrap_cls = f"cp-nav-btn-wrap{' active' if active else ''}"
-        st.markdown(f'<div class="{wrap_cls}" title="{_esc(tooltip)}">', unsafe_allow_html=True)
-        if st.button(icon, key=f"rail_{page_key}", help=tooltip):
-            navigate(page_key)
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-
-def render_sidebar(active_page: str | None = None) -> None:
-    page = active_page or st.session_state.nav_page
+def render_metric_card(label: str, value: str | int, icon: str = "📊") -> None:
     st.markdown(
         f"""
-        <div class="cp-sidebar-brand">
-            <div class="cp-sidebar-brand-title">Artixcore Pilot</div>
-            <div class="cp-sidebar-brand-sub">ContentPilot</div>
+        <div class="cp-metric-card">
+            <div class="cp-metric-icon">{icon}</div>
+            <div class="cp-metric-label">{_esc(label)}</div>
+            <div class="cp-metric-value">{_esc(str(value))}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown('<div class="cp-sidebar-primary-btn">', unsafe_allow_html=True)
-        if st.button("+ New Content", key="sidebar_new", type="primary", use_container_width=True):
-            navigate("create_post")
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-    with c2:
-        st.markdown('<div class="cp-sidebar-secondary-btn">', unsafe_allow_html=True)
-        if st.button("Import", key="sidebar_import", use_container_width=True):
-            navigate("ai_workspace")
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('<div class="cp-sidebar-search">', unsafe_allow_html=True)
-    st.text_input("Search", placeholder="Search...", key="sidebar_search", label_visibility="collapsed")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown('<div class="cp-section-title">Primary</div>', unsafe_allow_html=True)
-    for page_key, label in SIDEBAR_PRIMARY:
-        _nav_button(page_key, label)
-
-    st.markdown('<div class="cp-section-title">Works / Projects</div>', unsafe_allow_html=True)
-    for ws in SIDEBAR_WORKSPACES:
-        active = st.session_state.active_workspace == ws
-        wrap_cls = f"cp-nav-item cp-workspace-item{' active' if active else ''}"
-        st.markdown(f'<div class="{wrap_cls}">', unsafe_allow_html=True)
-        if st.button(ws, key=f"ws_{ws}", use_container_width=True):
-            st.session_state.active_workspace = ws
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown('<div class="cp-section-title">System</div>', unsafe_allow_html=True)
-    for page_key, label in SIDEBAR_SYSTEM:
-        _nav_button(page_key, label)
-
-    st.markdown(render_upgrade_card(), unsafe_allow_html=True)
-    st.markdown('<div class="cp-upgrade-card-btn">', unsafe_allow_html=True)
-    if st.button("Upgrade Premium", key="upgrade_btn", type="primary", use_container_width=True):
-        st.toast("Premium upgrade coming soon.")
-    st.markdown("</div>", unsafe_allow_html=True)
+def render_status_badge(label: str, status: str = "muted") -> str:
+    kind_map = {
+        "success": "cp-badge-success",
+        "configured": "cp-badge-success",
+        "approved": "cp-badge-success",
+        "published": "cp-badge-success",
+        "healthy": "cp-badge-success",
+        "warning": "cp-badge-warning",
+        "pending": "cp-badge-warning",
+        "missing": "cp-badge-warning",
+        "danger": "cp-badge-danger",
+        "error": "cp-badge-danger",
+        "rejected": "cp-badge-danger",
+        "info": "cp-badge-info",
+    }
+    cls = kind_map.get(status.lower(), "cp-badge-muted")
+    return f'<span class="cp-badge {cls}">{_esc(label)}</span>'
 
 
-def render_topbar(page_title: str | None = None) -> None:
-    label = page_title or get_current_page_label()
-    st.markdown('<div class="cp-topbar-wrap">', unsafe_allow_html=True)
-    left, right = st.columns([2.2, 1.8])
-    with left:
-        lc1, lc2 = st.columns([0.12, 0.88])
-        with lc1:
-            st.markdown('<div class="cp-menu-btn">', unsafe_allow_html=True)
-            if st.button("☰", key="toggle_sidebar", help="Toggle sidebar"):
-                st.session_state.sidebar_open = not st.session_state.sidebar_open
+def render_provider_card(name: str, configured: bool, description: str | None = None) -> None:
+    badge = render_status_badge("Configured" if configured else "Not Configured", "success" if configured else "warning")
+    desc = f'<p class="cp-provider-desc">{_esc(description)}</p>' if description else ""
+    st.markdown(
+        f"""
+        <div class="cp-provider-card">
+            <div class="cp-provider-header">
+                <span class="cp-provider-name">{_esc(name)}</span>
+                {badge}
+            </div>
+            {desc}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_health_card(name: str, status: str, message: str) -> None:
+    kind = {"healthy": "success", "warning": "warning", "error": "danger"}.get(status, "muted")
+    badge = render_status_badge(status.title(), kind)
+    st.markdown(
+        f"""
+        <div class="cp-health-card">
+            <div class="cp-health-header">
+                <span class="cp-health-name">{_esc(name)}</span>
+                {badge}
+            </div>
+            <p class="cp-health-message">{_esc(message)}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_info_card(title: str, body: str, icon: str | None = None) -> None:
+    icon_html = f'<div class="cp-info-icon">{icon}</div>' if icon else ""
+    st.markdown(
+        f"""
+        <div class="cp-info-card">
+            {icon_html}
+            <div class="cp-card-title">{_esc(title)}</div>
+            <p class="cp-provider-desc">{_esc(body)}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_connector_status(name: str, configured: bool, detail: str = "") -> None:
+    """Backward-compatible wrapper around render_provider_card."""
+    render_provider_card(name, configured, detail or None)
+
+
+def render_empty_state(
+    title: str,
+    subtitle: str = "",
+    prompt_placeholder: str | None = None,
+    *,
+    description: str | None = None,
+    icon: str = "✦",
+) -> None:
+    desc = subtitle or description or ""
+    st.markdown(
+        f"""
+        <div class="cp-welcome-hero">
+            <div class="cp-logo-mark">{_esc(icon)}</div>
+            <div class="cp-welcome-title">{_esc(title)}</div>
+            <div class="cp-welcome-sub">{_esc(desc)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if prompt_placeholder:
+        st.caption(prompt_placeholder)
+
+
+def render_template_card(title: str, description: str = "", icon: str | None = None) -> None:
+    icon_html = icon or "📝"
+    st.markdown(
+        f"""
+        <div class="cp-template-card">
+            <span style="font-size:1.25rem;">{icon_html}</span>
+            <div>
+                <div class="cp-card-title">{_esc(title)}</div>
+                <p class="cp-provider-desc">{_esc(description)}</p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_upgrade_card() -> str:
+    return """
+    <div class="cp-premium-card">
+        <div class="cp-upgrade-title">Premium Plan</div>
+        <div class="cp-upgrade-text">Unlock advanced automation, team approval, analytics, and cloud publishing.</div>
+    </div>
+    """
+
+
+def render_sidebar() -> None:
+    with st.sidebar:
+        st.markdown(
+            "<div class='cp-sidebar-title'>Artixcore Pilot</div>",
+            unsafe_allow_html=True,
+        )
+        st.caption("ContentPilot")
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            if st.button("+ New", key="sidebar_new", type="primary", use_container_width=True):
+                navigate("create_post")
                 st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-        with lc2:
-            st.markdown(f'<div class="cp-topbar-title">{_esc(label)}</div>', unsafe_allow_html=True)
-    with right:
-        st.markdown('<div class="cp-topbar-actions">', unsafe_allow_html=True)
-        ac = st.columns([1.4, 0.55, 0.55, 0.55, 0.55], gap="small")
-        with ac[0]:
-            st.markdown('<div class="cp-upgrade-btn">', unsafe_allow_html=True)
-            if st.button("Upgrade Plan", key="top_upgrade"):
+        with col_b:
+            if st.button("Import", key="sidebar_import", use_container_width=True):
+                navigate("ai_workspace")
+                st.rerun()
+
+        st.text_input("Search", placeholder="Search...", key="sidebar_search", label_visibility="collapsed")
+
+        selected_label = st.radio(
+            "Navigation",
+            NAV_LABELS,
+            index=NAV_LABELS.index(current_nav_label()) if current_nav_label() in NAV_LABELS else 0,
+            label_visibility="collapsed",
+            key="nav_radio",
+        )
+        page_key = key_for_label(selected_label)
+        if page_key != st.session_state.nav_page:
+            navigate(page_key)
+            st.rerun()
+
+        st.markdown("### Works / Projects")
+        for ws in SIDEBAR_WORKSPACES:
+            if st.button(ws, key=f"ws_{ws}", use_container_width=True):
+                st.session_state.active_workspace = ws
+                st.rerun()
+
+        st.markdown(render_upgrade_card(), unsafe_allow_html=True)
+        if st.button("Upgrade Premium", key="upgrade_btn", type="primary", use_container_width=True):
+            st.toast("Premium upgrade coming soon.")
+
+
+def render_topbar() -> None:
+    top_left, top_right = st.columns([1, 1])
+    with top_left:
+        st.markdown(
+            "<div class='cp-topbar-title'>Artixcore ContentPilot</div>",
+            unsafe_allow_html=True,
+        )
+    with top_right:
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            if st.button("Upgrade", key="top_upgrade", use_container_width=True):
                 st.toast("Premium upgrade coming soon.")
-            st.markdown("</div>", unsafe_allow_html=True)
-        with ac[1]:
-            st.markdown('<div class="cp-icon-btn">', unsafe_allow_html=True)
-            st.button("🕐", key="top_history", help="History")
-            st.markdown("</div>", unsafe_allow_html=True)
-        with ac[2]:
-            st.markdown('<div class="cp-icon-btn">', unsafe_allow_html=True)
-            st.button("↗", key="top_share", help="Share")
-            st.markdown("</div>", unsafe_allow_html=True)
-        with ac[3]:
-            st.markdown('<div class="cp-icon-btn">', unsafe_allow_html=True)
-            st.button("🔔", key="top_notify", help="Notifications")
-            st.markdown("</div>", unsafe_allow_html=True)
-        with ac[4]:
-            st.markdown('<div class="cp-icon-btn">', unsafe_allow_html=True)
-            if st.button("👤", key="top_profile", help="Profile"):
+        with c2:
+            st.button("History", key="top_history", use_container_width=True)
+        with c3:
+            st.button("Alerts", key="top_notify", use_container_width=True)
+        with c4:
+            if st.button("Profile", key="top_profile", use_container_width=True):
                 navigate("brand_settings")
                 st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_alert(message: str, kind: str = "info") -> None:
@@ -278,54 +291,6 @@ def render_platform_badge(platform: str) -> str:
         f'<span class="cp-badge" style="background:{color}15;color:{color};'
         f'border:1px solid {color}30;">{_esc(plat_label)}</span>'
     )
-
-
-def render_connector_status(name: str, configured: bool, detail: str = "") -> None:
-    badge = render_status_badge("Configured" if configured else "Missing", "success" if configured else "warning")
-    detail_html = (
-        f'<div style="font-size:0.8125rem;color:{TEXT_SECONDARY};margin-top:4px;">{_esc(detail)}</div>'
-        if detail
-        else ""
-    )
-    st.markdown(
-        f"""
-        <div class="cp-card" style="padding:14px 16px;margin-bottom:8px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-                <span style="font-weight:600;color:{TEXT_PRIMARY};">{_esc(name)}</span>
-                {badge}
-            </div>
-            {detail_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_empty_state(title: str, description: str = "", icon: str = "✦") -> None:
-    st.markdown(
-        f"""
-        <div class="cp-welcome-hero">
-            <div class="cp-logo-mark">{_esc(icon)}</div>
-            <div class="cp-welcome-title">{_esc(title)}</div>
-            <div class="cp-welcome-sub">{_esc(description)}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_template_card(
-    title: str,
-    icon: str = "📝",
-    action_label: str = "Use",
-) -> str:
-    return f"""
-    <div class="cp-template-card">
-        <span style="font-size:1.25rem;">{icon}</span>
-        <div class="cp-template-text">{_esc(title)}</div>
-        <span class="cp-badge cp-badge-muted">{_esc(action_label)}</span>
-    </div>
-    """
 
 
 def render_chat_message(
@@ -361,12 +326,6 @@ def render_chat_message(
 
 def render_date_divider(label: str = "TODAY") -> None:
     st.markdown(f'<div class="cp-date-divider">{_esc(label)}</div>', unsafe_allow_html=True)
-
-
-def render_responsive_grid(html_items: list[str], columns: int = 3) -> None:
-    grid_cls = f"cp-grid cp-grid-{min(columns, 6)}"
-    items = "".join(html_items)
-    st.markdown(f'<div class="{grid_cls}">{items}</div>', unsafe_allow_html=True)
 
 
 def render_table_as_cards(rows: list[dict[str, Any]], columns: list[tuple[str, str]]) -> None:
@@ -427,15 +386,6 @@ def render_welcome_hero() -> None:
     )
 
 
-def render_upgrade_card() -> str:
-    return """
-    <div class="cp-upgrade-card">
-        <div class="cp-upgrade-title">Premium Plan</div>
-        <div class="cp-upgrade-text">Unlock advanced automation, team approval, analytics, and cloud publishing.</div>
-    </div>
-    """
-
-
 def render_queue_card(
     title: str,
     badges: str,
@@ -444,7 +394,7 @@ def render_queue_card(
 ) -> None:
     st.markdown(
         f"""
-        <div class="cp-card" style="padding:16px 20px;">
+        <div class="cp-card">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
                 <span style="font-weight:600;color:{TEXT_PRIMARY};">{_esc(title)}</span>
                 <span>{badges}</span>

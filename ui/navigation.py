@@ -6,40 +6,28 @@ from typing import Any
 
 import streamlit as st
 
-ICON_RAIL: list[tuple[str, str, str]] = [
-    ("dashboard", "⌂", "Dashboard"),
-    ("ai_workspace", "✦", "Content Agent"),
-    ("chat_inbox", "💬", "Chatbot"),
-    ("publish_center", "↗", "Social Publishing"),
-    ("training_data", "◎", "Training Data"),
-    ("integrations", "⚡", "Integrations"),
-    ("chat_control", "⚙", "Settings"),
+NAV_OPTIONS: list[tuple[str, str]] = [
+    ("Dashboard", "dashboard"),
+    ("AI Workspace", "ai_workspace"),
+    ("Create Post", "create_post"),
+    ("Approvals", "approvals"),
+    ("Chat Inbox", "chat_inbox"),
+    ("Chat Control", "chat_control"),
+    ("Publish Center", "publish_center"),
+    ("Training Data", "training_data"),
+    ("Provider Settings", "provider_settings"),
+    ("Publishing Settings", "publishing_settings"),
+    ("Brand Settings", "brand_settings"),
+    ("Exports", "exports"),
 ]
 
-SIDEBAR_PRIMARY: list[tuple[str, str]] = [
-    ("dashboard", "Dashboard"),
-    ("ai_workspace", "AI Workspace"),
-    ("create_post", "Create Post"),
-    ("chat_inbox", "Chat Inbox"),
-    ("publish_center", "Publish Center"),
-    ("campaigns", "Campaigns"),
-]
+NAV_LABELS = [label for label, _ in NAV_OPTIONS]
+NAV_KEYS = [key for _, key in NAV_OPTIONS]
 
 SIDEBAR_WORKSPACES: list[str] = [
     "Artixcore",
     "Dealzyro",
     "Digitalplanup",
-    "ContentPilot",
-    "General",
-]
-
-SIDEBAR_SYSTEM: list[tuple[str, str]] = [
-    ("brand_settings", "Brand Settings"),
-    ("provider_settings", "Provider Settings"),
-    ("publishing_settings", "Publishing Settings"),
-    ("chat_control", "Chat Control"),
-    ("training_data", "Training Data"),
-    ("exports", "Exports"),
 ]
 
 PAGE_LABELS: dict[str, str] = {
@@ -63,7 +51,6 @@ PAGE_LABELS: dict[str, str] = {
 def init_navigation() -> None:
     defaults: dict[str, Any] = {
         "nav_page": "dashboard",
-        "sidebar_open": True,
         "active_workspace": "Artixcore",
         "chat_messages": [],
         "workspace_mode": "welcome",
@@ -79,3 +66,18 @@ def navigate(page_key: str) -> None:
 
 def get_current_page_label() -> str:
     return PAGE_LABELS.get(st.session_state.nav_page, "Dashboard")
+
+
+def label_for_key(page_key: str) -> str:
+    return PAGE_LABELS.get(page_key, "Dashboard")
+
+
+def key_for_label(label: str) -> str:
+    for nav_label, key in NAV_OPTIONS:
+        if nav_label == label:
+            return key
+    return "dashboard"
+
+
+def current_nav_label() -> str:
+    return label_for_key(st.session_state.nav_page)

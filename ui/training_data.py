@@ -12,7 +12,7 @@ from core.training_data import (
 )
 from core.utils import format_user_error
 from ui.components import (
-    render_metrics_grid,
+    render_metric_card,
     render_page_header,
     render_section_header,
     render_status_badge,
@@ -23,46 +23,49 @@ def render(session: Session) -> None:
     render_page_header("Training Data", "Manage training examples for fine-tuning, RAG, and brand learning.")
 
     stats = get_training_stats(session)
-    render_metrics_grid([
-        ("Total Examples", stats["total"], "◎"),
-        ("Approved", stats["approved"], "✓"),
-        ("Published", stats["published"], "📤"),
-        ("Rejected", stats["rejected"], "✗"),
-        ("Avg Quality", stats["avg_quality_score"] or "N/A", "★"),
-    ])
+    t1, t2, t3, t4, t5 = st.columns(5)
+    with t1:
+        render_metric_card("Total Examples", stats["total"], "◎")
+    with t2:
+        render_metric_card("Approved", stats["approved"], "✓")
+    with t3:
+        render_metric_card("Published", stats["published"], "📤")
+    with t4:
+        render_metric_card("Rejected", stats["rejected"], "✗")
+    with t5:
+        render_metric_card("Avg Quality", stats["avg_quality_score"] or "N/A", "★")
 
-    st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-    render_section_header("Export Training Data")
-    export_source = st.radio(
-        "Export Source",
-        ["Content posts", "Chatbot", "Both"],
-        horizontal=True,
-    )
-    include_rejected = st.checkbox("Include rejected examples", value=False)
+    with st.container(border=True):
+        render_section_header("Export Training Data")
+        export_source = st.radio(
+            "Export Source",
+            ["Content posts", "Chatbot", "Both"],
+            horizontal=True,
+        )
+        include_rejected = st.checkbox("Include rejected examples", value=False)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Export JSONL", use_container_width=True):
-            from core.chat_database import export_chatbot_training_jsonl, export_combined_training_jsonl
-            from core.training_data import export_training_data_jsonl
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Export JSONL", use_container_width=True):
+                from core.chat_database import export_chatbot_training_jsonl, export_combined_training_jsonl
+                from core.training_data import export_training_data_jsonl
 
-            if export_source == "Content posts":
-                data = export_training_data_jsonl(session, include_rejected=include_rejected)
-                filename = "training_data_posts.jsonl"
-            elif export_source == "Chatbot":
-                data = export_chatbot_training_jsonl(session, include_rejected=include_rejected)
-                filename = "training_data_chatbot.jsonl"
-            else:
-                data = export_combined_training_jsonl(session, include_rejected=include_rejected)
-                filename = "training_data_combined.jsonl"
-            st.download_button("Download JSONL", data=data, file_name=filename, mime="application/jsonl")
-    with col2:
-        if export_source == "Content posts" and st.button("Export CSV", use_container_width=True):
-            from core.training_data import export_training_data_csv
+                if export_source == "Content posts":
+                    data = export_training_data_jsonl(session, include_rejected=include_rejected)
+                    filename = "training_data_posts.jsonl"
+                elif export_source == "Chatbot":
+                    data = export_chatbot_training_jsonl(session, include_rejected=include_rejected)
+                    filename = "training_data_chatbot.jsonl"
+                else:
+                    data = export_combined_training_jsonl(session, include_rejected=include_rejected)
+                    filename = "training_data_combined.jsonl"
+                st.download_button("Download JSONL", data=data, file_name=filename, mime="application/jsonl")
+        with col2:
+            if export_source == "Content posts" and st.button("Export CSV", use_container_width=True):
+                from core.training_data import export_training_data_csv
 
-            data = export_training_data_csv(session, include_rejected=include_rejected)
-            st.download_button("Download CSV", data=data, file_name="training_data.csv", mime="text/csv")
-    st.markdown("</div>", unsafe_allow_html=True)
+                data = export_training_data_csv(session, include_rejected=include_rejected)
+                st.download_button("Download CSV", data=data, file_name="training_data.csv", mime="text/csv")
 
     render_section_header("Training Examples")
     search = st.text_input("Search", placeholder="Filter by platform, status...", key="td_search")

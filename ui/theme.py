@@ -5,7 +5,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 # Brand tokens (used by components for inline HTML)
 PRIMARY = "#D97706"
@@ -46,12 +45,8 @@ def load_css() -> None:
 
 
 def load_js() -> None:
-    """Inject optional lightweight JS enhancements."""
-    js_path = _ASSETS_ROOT / "js" / "app.js"
-    if not js_path.is_file():
-        return
-    js = js_path.read_text(encoding="utf-8")
-    components.html(f"<script>{js}</script>", height=0)
+    """Disabled — layout uses native Streamlit primitives only."""
+    return
 
 
 def inject_theme() -> None:

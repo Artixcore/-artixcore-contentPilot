@@ -29,21 +29,19 @@ def render(session: Session) -> None:
 
     c1, c2 = st.columns(2)
     with c1:
-        st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-        render_connector_status("OpenAI", bool(availability.get("openai")))
-        st.caption(f"Model: {os.getenv('OPENAI_MODEL', 'gpt-4.1-mini')}")
-        st.caption(f"Key: {mask_secret(os.getenv('OPENAI_API_KEY', ''))}")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            render_connector_status("OpenAI", bool(availability.get("openai")))
+            st.caption(f"Model: {os.getenv('OPENAI_MODEL', 'gpt-4.1-mini')}")
+            st.caption(f"Key: {mask_secret(os.getenv('OPENAI_API_KEY', ''))}")
     with c2:
-        st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-        render_connector_status("Anthropic", bool(availability.get("anthropic")))
-        st.caption(f"Model: {os.getenv('ANTHROPIC_MODEL', 'claude-3-5-sonnet-latest')}")
-        st.caption(f"Key: {mask_secret(os.getenv('ANTHROPIC_API_KEY', ''))}")
-        st.markdown("</div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            render_connector_status("Anthropic", bool(availability.get("anthropic")))
+            st.caption(f"Model: {os.getenv('ANTHROPIC_MODEL', 'claude-3-5-sonnet-latest')}")
+            st.caption(f"Key: {mask_secret(os.getenv('ANTHROPIC_API_KEY', ''))}")
 
-    st.markdown('<div class="cp-card-panel">', unsafe_allow_html=True)
-    render_section_header("Configuration")
-    st.markdown(
+    with st.container(border=True):
+        render_section_header("Configuration")
+        st.markdown(
         """
 Configure API keys in your `.env` file (copy from `.env.example`):
 
@@ -57,8 +55,7 @@ ANTHROPIC_MODEL=claude-3-5-sonnet-latest
 
 **Never commit your `.env` file.** Restart the app after updating environment variables.
         """
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+        )
 
     render_section_header("Provider Router Modes")
     st.markdown(

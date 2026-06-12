@@ -14,27 +14,26 @@ from ui.components import render_page_header, render_section_header, render_stat
 def render(session: Session) -> None:
     render_page_header("Campaigns", "Plan and manage content campaigns.")
 
-    st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-    render_section_header("Create Campaign")
-    with st.form("campaign_form"):
-        name = st.text_input("Campaign Name *")
-        goal = st.text_input("Goal")
-        description = st.text_area("Description", height=100)
-        platforms = st.multiselect(
-            "Platforms",
-            options=list(PLATFORMS),
-            default=["linkedin", "facebook"],
-        )
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            start_date = st.date_input("Start Date")
-        with c2:
-            end_date = st.date_input("End Date")
-        with c3:
-            posts_per_week = st.number_input("Posts Per Week", min_value=1, max_value=50, value=3)
+    with st.container(border=True):
+        render_section_header("Create Campaign")
+        with st.form("campaign_form"):
+            name = st.text_input("Campaign Name *")
+            goal = st.text_input("Goal")
+            description = st.text_area("Description", height=100)
+            platforms = st.multiselect(
+                "Platforms",
+                options=list(PLATFORMS),
+                default=["linkedin", "facebook"],
+            )
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                start_date = st.date_input("Start Date")
+            with c2:
+                end_date = st.date_input("End Date")
+            with c3:
+                posts_per_week = st.number_input("Posts Per Week", min_value=1, max_value=50, value=3)
 
-        submitted = st.form_submit_button("Save Campaign", type="primary", use_container_width=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+            submitted = st.form_submit_button("Save Campaign", type="primary", use_container_width=True)
 
     if submitted:
         if not name or not name.strip():
