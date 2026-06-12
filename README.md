@@ -5,10 +5,11 @@
 ## What It Does
 
 - **AI content generation** — Platform-specific posts via OpenAI or Anthropic (no mock provider)
-- **Approval workflow** — Human review before any publishing
+- **AI chatbot** — Facebook, LinkedIn, and X/Twitter chat connectors with Telegram admin control
+- **Approval workflow** — Human review before any publishing or chatbot replies
 - **Social publishing** — Real connectors for LinkedIn, X/Twitter, Facebook, Instagram, and Website API
 - **Training data** — Saves prompts, responses, edits, and feedback for future fine-tuning
-- **Local SQLite database** — Full audit trail, provider logs, and publishing logs
+- **Local SQLite database** — Full audit trail, provider logs, publishing logs, and chat history
 
 ## Requirements
 
@@ -47,6 +48,10 @@ If no valid OpenAI or Anthropic API key is configured, the app shows:
 > Please provide a valid OpenAI or Anthropic API key to use Artixcore ContentPilot.
 
 Content generation is blocked until a real provider is configured.
+
+For the chatbot, if no valid provider is configured:
+
+> Please provide a valid OpenAI or Anthropic API key to use Artixcore ContentPilot Chatbot.
 
 ## How to Test
 
@@ -125,6 +130,119 @@ WEBSITE_POST_ENDPOINT=/api/posts
 
 Publishes blog drafts to your Artixcore website CMS API.
 
+## Chatbot Overview
+
+The chatbot module replies to Facebook, LinkedIn, and X/Twitter messages using OpenAI or Anthropic. **No mock AI provider exists.** Auto-reply is **disabled by default**; approval mode is **enabled by default**.
+
+### Chat Control
+
+Use **Chat Control** in the sidebar to:
+
+- View AI provider and connector status
+- Enable/disable auto reply, approval mode, and human handoff
+- Configure personality, gender style (tone-only), language, tone, reply length, emoji usage, and CTA style
+
+### Chat Inbox
+
+Use **Chat Inbox** to:
+
+- Review conversations and AI draft replies
+- Approve, reject, regenerate, or send manual replies
+- Simulate incoming messages locally (no public webhook required)
+
+### Chat Settings
+
+Use **Chat Settings** for chatbot name, custom personality prompt, blocked keywords, business hours, and fallback message.
+
+### Personality Configuration
+
+Personality types: Professional Consultant, Friendly Support Agent, Technical Expert, Sales Assistant, Founder-like Visionary, Minimal Direct Agent, Custom Personality.
+
+Gender style (Male, Female, Neutral) affects tone and phrasing only — not biological claims or stereotypes.
+
+Languages: English, Bangla, English + Bangla Mixed, Hindi, Arabic, Spanish, French, German, Portuguese, Custom.
+
+### Facebook Connector Setup
+
+```env
+META_PAGE_ID=
+META_PAGE_ACCESS_TOKEN=
+META_VERIFY_TOKEN=
+META_GRAPH_VERSION=v23.0
+```
+
+Webhook verification uses `META_VERIFY_TOKEN`. For production, deploy a public webhook endpoint. For local MVP, use **Simulate Incoming Message** in Chat Inbox.
+
+### LinkedIn Connector (Limitation)
+
+LinkedIn direct messaging APIs are restricted. The connector returns:
+
+> LinkedIn messaging requires approved API access. Configure valid permissions or use manual inbox mode.
+
+Set `LINKEDIN_MESSAGING_ENABLED=true` only if you have approved messaging API access.
+
+### X/Twitter Connector Setup
+
+```env
+X_ACCESS_TOKEN=
+X_DM_ENABLED=false
+```
+
+Reply support depends on your X API access tier. DMs require `X_DM_ENABLED=true` and appropriate API permissions.
+
+### Telegram Controller Setup
+
+```env
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_ADMIN_IDS=123456789,987654321
+```
+
+The Telegram bot starts automatically when `TELEGRAM_BOT_TOKEN` is set. Only user IDs in `TELEGRAM_ADMIN_IDS` can control the chatbot.
+
+#### Telegram Commands
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome and status |
+| `/status` | Provider, mode, pending count, platform status |
+| `/pause` | Disable auto replies |
+| `/resume` | Enable auto replies |
+| `/mode_auto` | Auto reply without approval |
+| `/mode_approval` | Approval required, auto reply off |
+| `/pending` | List pending replies |
+| `/approve {message_id}` | Approve and send |
+| `/reject {message_id}` | Reject draft |
+| `/reply {conversation_id} {message}` | Manual reply |
+| `/handoff {conversation_id}` | Human handoff |
+| `/close {conversation_id}` | Close conversation |
+| `/personality {type}` | Change personality |
+| `/gender {male\|female\|neutral}` | Change gender style |
+| `/language {language}` | Change language |
+| `/help` | Show commands |
+
+### Approval vs Auto Reply
+
+| Mode | `auto_reply_enabled` | `approval_required` |
+|------|---------------------|---------------------|
+| **Default (Approval)** | `false` | `true` |
+| **Auto Reply** | `true` | `false` |
+
+Safety checks run before any automatic send. Failed safety checks block auto-send.
+
+### Human Handoff
+
+When enabled, conversations marked `human_handoff` skip AI auto-replies. Use Chat Inbox or `/handoff` to escalate.
+
+### Chat Training Data Export
+
+Export from **Training Data** or **Exports**:
+
+- Content posts training data
+- Chatbot training data
+- Both (combined JSONL)
+
+Format includes system/user/assistant messages plus metadata (platform, personality, gender style, language, quality score, approval status).
+
 ## Local Database
 
 Database path: `data/contentpilot.db` (configurable via `DATABASE_URL`).
@@ -140,6 +258,13 @@ Database path: `data/contentpilot.db` (configurable via `DATABASE_URL`).
 - `content_events` — Audit trail (generated, edited, approved, published, etc.)
 - `social_accounts` — Future OAuth account storage (env references for MVP)
 - `post_analytics` — Engagement metrics (manual/future fetch)
+- `chatbot_settings` — Chatbot personality and behavior config
+- `chat_conversations` — Cross-platform conversation threads
+- `chat_messages` — Full message audit with AI prompts and safety
+- `chat_events` — Chatbot event log
+- `chat_training_examples` — Chat fine-tuning examples
+- `telegram_admins` — Telegram admin registry
+- `telegram_commands` — Telegram command audit log
 
 Migrations run safely on startup — missing columns are added without deleting data.
 
@@ -169,25 +294,35 @@ Rejected examples are excluded by default.
 - Request/response payloads are sanitized before logging
 - Human approval is required before publishing
 - Manual publish click is required — no auto-publishing
+- Telegram controller only accepts configured admin IDs
+- Chatbot replies require safety pass before auto-send
+- System prompts are never exposed to end users
 
 ## Current Limitations
 
 - **No OAuth** — Tokens configured manually through `.env`
 - **Instagram** — Image posts only; requires public image URL
 - **X/Twitter** — Text only; 280 character limit enforced
+- **LinkedIn messaging** — API access may be restricted; manual inbox mode for MVP
+- **Facebook webhooks** — Real-time messaging requires public deployment
+- **Telegram** — Polling mode only; webhook mode not implemented
 - **Production publishing** — May require platform review and approved permissions
 - **Analytics** — Table ready; platform fetch not implemented (manual entry only)
 - **Single brand profile** — Multi-brand support planned
 - **No image generation** — Image prompts are text only
+- **Chatbot auto-reply off by default** — Approval required unless explicitly changed
 
 ## Future Roadmap
 
 - OAuth flows for LinkedIn, X, Meta
+- Facebook/LinkedIn/X real-time webhooks in production
+- Telegram webhook mode
 - Scheduling calendar with queue
 - Platform analytics auto-fetch
 - Image generation integration
 - Multi-brand support
 - Team approval workflow with RBAC
+- RAG over chat training data
 - SaaS version with authentication and billing
 
 ## Project Structure
@@ -195,11 +330,12 @@ Rejected examples are excluded by default.
 ```
 artixcore-contentpilot/
 ├── app.py
-├── core/           # Agent, router, database, publishing, training data
+├── chatbot/        # Chatbot agent, connectors, Telegram controller
+├── core/           # Agent, router, database, publishing, training data, chat DB
 ├── providers/      # OpenAI, Anthropic
 ├── publishers/     # LinkedIn, X, Facebook, Instagram, Website
 ├── prompts/        # Brand voice and generation prompts
-├── ui/             # Streamlit pages
+├── ui/             # Streamlit pages (including Chat Control, Inbox, Settings)
 ├── data/           # SQLite database
 └── tests/          # pytest suite
 ```

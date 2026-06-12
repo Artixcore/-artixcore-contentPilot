@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 import core.database as db_module
+from core.chat_database import seed_default_chatbot_settings
 from core.database import get_session, init_db, reset_engine, seed_default_brand_profile
 
 
@@ -11,6 +12,10 @@ from core.database import get_session, init_db, reset_engine, seed_default_brand
 def isolate_env(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.delenv("TELEGRAM_BOT_TOKEN", raising=False)
+    monkeypatch.delenv("TELEGRAM_ADMIN_IDS", raising=False)
+    monkeypatch.delenv("META_PAGE_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("X_ACCESS_TOKEN", raising=False)
     monkeypatch.setenv("DATABASE_URL", "sqlite:///:memory:")
 
 
@@ -20,6 +25,7 @@ def db_session() -> Session:
     init_db()
     session = get_session()
     seed_default_brand_profile(session)
+    seed_default_chatbot_settings(session)
     session.commit()
     yield session
     session.close()

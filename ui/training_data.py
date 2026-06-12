@@ -27,22 +27,36 @@ def render(session: Session) -> None:
 
     st.divider()
     st.subheader("Export Training Data")
+    export_source = st.radio(
+        "Export Source",
+        ["Content posts", "Chatbot", "Both"],
+        horizontal=True,
+    )
     include_rejected = st.checkbox("Include rejected examples", value=False)
 
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Export JSONL"):
+            from core.chat_database import export_chatbot_training_jsonl, export_combined_training_jsonl
             from core.training_data import export_training_data_jsonl
 
-            data = export_training_data_jsonl(session, include_rejected=include_rejected)
+            if export_source == "Content posts":
+                data = export_training_data_jsonl(session, include_rejected=include_rejected)
+                filename = "training_data_posts.jsonl"
+            elif export_source == "Chatbot":
+                data = export_chatbot_training_jsonl(session, include_rejected=include_rejected)
+                filename = "training_data_chatbot.jsonl"
+            else:
+                data = export_combined_training_jsonl(session, include_rejected=include_rejected)
+                filename = "training_data_combined.jsonl"
             st.download_button(
                 "Download JSONL",
                 data=data,
-                file_name="training_data.jsonl",
+                file_name=filename,
                 mime="application/jsonl",
             )
     with col2:
-        if st.button("Export CSV"):
+        if export_source == "Content posts" and st.button("Export CSV"):
             from core.training_data import export_training_data_csv
 
             data = export_training_data_csv(session, include_rejected=include_rejected)

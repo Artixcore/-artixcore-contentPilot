@@ -202,6 +202,179 @@ class PostAnalytics(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
 
+class ChatbotSettings(Base):
+    __tablename__ = "chatbot_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    chatbot_name: Mapped[str] = mapped_column(String(255), nullable=False, default="Artixcore Assistant")
+    personality_type: Mapped[str] = mapped_column(String(100), nullable=False, default="Professional Consultant")
+    custom_personality_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    gender_style: Mapped[str] = mapped_column(String(50), nullable=False, default="Neutral")
+    language: Mapped[str] = mapped_column(String(100), nullable=False, default="English")
+    tone: Mapped[str] = mapped_column(String(100), nullable=False, default="Professional")
+    reply_length: Mapped[str] = mapped_column(String(50), nullable=False, default="Medium")
+    emoji_usage: Mapped[str] = mapped_column(String(50), nullable=False, default="Minimal")
+    cta_style: Mapped[str] = mapped_column(String(100), nullable=False, default="Ask for project details")
+    auto_reply_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    approval_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    human_handoff_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    blocked_keywords: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    business_hours_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    business_hours_start: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    business_hours_end: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    fallback_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utc_now, onupdate=utc_now
+    )
+
+
+class ChatConversation(Base):
+    __tablename__ = "chat_conversations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    platform: Mapped[str] = mapped_column(String(50), nullable=False)
+    platform_conversation_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    user_platform_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    user_display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    user_profile_url: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, default="open")
+    assigned_to: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    last_message_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utc_now, onupdate=utc_now
+    )
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    conversation_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    platform: Mapped[str] = mapped_column(String(50), nullable=False)
+    platform_message_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    sender_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    sender_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    message_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    message_type: Mapped[str] = mapped_column(String(50), nullable=False, default="text")
+    ai_generated_reply: Mapped[str | None] = mapped_column(Text, nullable=True)
+    final_reply: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reply_status: Mapped[str] = mapped_column(String(50), nullable=False, default="incoming")
+    provider_used: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    model_used: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    input_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    raw_ai_response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    parsed_ai_response: Mapped[str | None] = mapped_column(Text, nullable=True)
+    safety_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    safety_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utc_now, onupdate=utc_now
+    )
+
+
+class ChatEvent(Base):
+    __tablename__ = "chat_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    conversation_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    message_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    event_data: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+
+class ChatTrainingExample(Base):
+    __tablename__ = "chat_training_examples"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    conversation_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    message_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    platform: Mapped[str] = mapped_column(String(50), nullable=False)
+    user_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    system_prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ai_reply: Mapped[str | None] = mapped_column(Text, nullable=True)
+    final_reply: Mapped[str | None] = mapped_column(Text, nullable=True)
+    human_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quality_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    approval_status: Mapped[str] = mapped_column(String(50), nullable=False, default="pending")
+    used_for_training: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utc_now, onupdate=utc_now
+    )
+
+
+class TelegramAdmin(Base):
+    __tablename__ = "telegram_admins"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    telegram_user_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    telegram_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    display_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=utc_now, onupdate=utc_now
+    )
+
+
+class TelegramCommand(Base):
+    __tablename__ = "telegram_commands"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    telegram_user_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    command: Mapped[str] = mapped_column(String(100), nullable=False)
+    payload: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
+
+
+CHAT_CONVERSATION_STATUSES = (
+    "open",
+    "pending_approval",
+    "replied",
+    "human_handoff",
+    "closed",
+    "blocked",
+)
+
+CHAT_SENDER_TYPES = ("user", "bot", "human_admin", "system")
+
+CHAT_REPLY_STATUSES = (
+    "incoming",
+    "draft",
+    "pending_approval",
+    "approved",
+    "sent",
+    "rejected",
+    "failed",
+)
+
+CHAT_PLATFORMS = ("facebook", "linkedin", "twitter")
+
+DEFAULT_CHATBOT_SETTINGS = {
+    "chatbot_name": "Artixcore Assistant",
+    "personality_type": "Professional Consultant",
+    "gender_style": "Neutral",
+    "language": "English",
+    "tone": "Professional",
+    "reply_length": "Medium",
+    "emoji_usage": "Minimal",
+    "cta_style": "Ask for project details",
+    "auto_reply_enabled": False,
+    "approval_required": True,
+    "human_handoff_enabled": True,
+    "blocked_keywords": "[]",
+    "business_hours_enabled": False,
+    "fallback_message": (
+        "Thanks for reaching out to Artixcore. A team member will follow up with you shortly."
+    ),
+}
+
 POST_STATUSES = (
     "draft",
     "pending_approval",

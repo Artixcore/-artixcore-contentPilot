@@ -5,11 +5,15 @@ import logging
 import streamlit as st
 from dotenv import load_dotenv
 
+from core.chat_database import seed_default_chatbot_settings
 from core.database import get_session, init_db, seed_default_brand_profile
 from ui import (
     approvals,
     brand_settings,
     campaigns,
+    chat_control,
+    chat_inbox,
+    chat_settings,
     create_post,
     dashboard,
     exports,
@@ -48,12 +52,24 @@ def bootstrap_database():
     session = get_session()
     try:
         seed_default_brand_profile(session)
+        seed_default_chatbot_settings(session)
         session.commit()
     finally:
         session.close()
 
 
 bootstrap_database()
+
+
+@st.cache_resource
+def start_telegram_controller():
+    from chatbot.telegram_controller import start_telegram_polling
+
+    start_telegram_polling()
+    return True
+
+
+start_telegram_controller()
 
 PAGES = {
     "Dashboard": dashboard.render,
@@ -64,6 +80,9 @@ PAGES = {
     "Provider Settings": provider_settings.render,
     "Publishing Settings": publishing_settings.render,
     "Publish Center": publish_center.render,
+    "Chat Control": chat_control.render,
+    "Chat Inbox": chat_inbox.render,
+    "Chat Settings": chat_settings.render,
     "Training Data": training_data.render,
     "Exports": exports.render,
 }
