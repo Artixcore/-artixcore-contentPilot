@@ -5,10 +5,16 @@ from sqlalchemy.orm import Session
 
 from core.database import get_brand_profile
 from core.schemas import BrandProfileUpdate
-from ui.bootstrap_components import section_title
+from ui.components import page_header, section_title
+from ui.notifications import show_error_from_dict, show_success
 
 
-def render(session: Session) -> None:
+def render_brand_settings(session: Session) -> None:
+    page_header(
+        "Brand Settings",
+        "Configure the Artixcore brand profile used for content generation.",
+    )
+
     profile = get_brand_profile(session)
     if not profile:
         st.error("Brand profile not found. The default profile will be created on next app restart.")
@@ -16,7 +22,7 @@ def render(session: Session) -> None:
 
     with st.container(border=True):
         with st.form("brand_form"):
-            st.markdown(section_title("Company Profile"), unsafe_allow_html=True)
+            section_title("Company Profile")
             c1, c2 = st.columns(2)
             with c1:
                 company_name = st.text_input("Company Name", value=profile.company_name)
@@ -26,7 +32,7 @@ def render(session: Session) -> None:
                 description = st.text_area("Description", value=profile.description, height=100)
                 tone = st.text_area("Tone", value=profile.tone, height=80)
 
-            st.markdown(section_title("Audience & Style"), unsafe_allow_html=True)
+            section_title("Audience & Style")
             target_audience = st.text_area("Target Audience", value=profile.target_audience, height=80)
             services = st.text_area("Services", value=profile.services, height=80)
             preferred_cta = st.text_area("Preferred CTA", value=profile.preferred_cta, height=80)
@@ -37,7 +43,6 @@ def render(session: Session) -> None:
     if submitted:
         from core.cache import invalidate_prefix
         from core.safe_runner import safe_streamlit_action
-        from ui.notifications import show_error_from_dict, show_success
 
         def _save_brand():
             data = BrandProfileUpdate(
@@ -71,3 +76,7 @@ def render(session: Session) -> None:
         else:
             session.rollback()
             show_error_from_dict(outcome.get("error") or {})
+
+
+def render(session: Session) -> None:
+    render_brand_settings(session)

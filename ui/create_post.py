@@ -7,9 +7,11 @@ from core.agent import AgentValidationError, ContentPilotAgent
 from core.database import get_brand_profile
 from core.models import PLATFORMS, Post
 from core.router import ProviderRouter
-from ui.notifications import show_error_from_dict, show_success
 from providers import PROVIDER_UNAVAILABLE_MSG
-from ui.bootstrap_components import alert_html, badge, section_title
+from ui.components import alert_card, badge_html, page_header, section_title, status_card
+from ui.loading import loading_spinner
+from ui.navigation import navigate
+from ui.notifications import show_error_from_dict, show_success
 
 PLATFORM_LABELS = {
     "facebook": "Facebook",
@@ -23,17 +25,19 @@ PROVIDER_MODES = ["auto", "manual", "fallback", "quality"]
 PROVIDERS = ["openai", "anthropic"]
 
 
-def render(session: Session) -> None:
+def render_create_post(session: Session) -> None:
     router = ProviderRouter(session=session)
+    page_header("Create Post", "Generate AI-powered content for your selected platform.")
+
     if not router.has_any_provider():
-        st.markdown(alert_html(PROVIDER_UNAVAILABLE_MSG, "error"), unsafe_allow_html=True)
+        alert_card(PROVIDER_UNAVAILABLE_MSG, "error")
 
     brand = get_brand_profile(session)
     default_tone = brand.tone if brand else ""
     default_cta = brand.preferred_cta if brand else ""
     availability = router.get_availability_status()
 
-    st.markdown(section_title("Select Platform"), unsafe_allow_html=True)
+    section_title("Select Platform")
     platform = st.selectbox(
         "Platform",
         PLATFORMS,
@@ -64,21 +68,21 @@ def render(session: Session) -> None:
 
     with side_col:
         with st.container(border=True):
-            st.markdown(section_title("Brand Profile"), unsafe_allow_html=True)
+            section_title("Brand Profile")
             if brand:
                 st.markdown(
                     f"**{brand.company_name or 'Artixcore'}**  \n"
                     f"{brand.description[:120] + '...' if brand.description and len(brand.description) > 120 else brand.description or ''}"
                 )
-            st.markdown(section_title("Provider Status"), unsafe_allow_html=True)
+            section_title("Provider Status")
             for name, ok in [("OpenAI", availability.get("openai")), ("Anthropic", availability.get("anthropic"))]:
-                st.markdown(
-                    f'<div class="card border rounded-3 shadow-sm mb-2 p-3 d-flex justify-content-between">'
-                    f'<span class="fw-semibold">{name}</span>{badge("Configured" if ok else "Missing", "success" if ok else "warning")}</div>',
-                    unsafe_allow_html=True,
+                status_card(
+                    name,
+                    "Configured." if ok else "API key missing.",
+                    "success" if ok else "warning",
                 )
             st.caption("All generated content requires human approval before publishing.")
-            st.markdown(section_title("Similar Posts"), unsafe_allow_html=True)
+            section_title("Similar Posts")
             similar = (
                 session.query(Post)
                 .filter(Post.platform == platform)
@@ -94,11 +98,10 @@ def render(session: Session) -> None:
 
     if generate:
         if not topic or not topic.strip():
-            st.markdown(alert_html("Topic is required. Please enter a topic for your post.", "error"), unsafe_allow_html=True)
+            alert_card("Topic is required. Please enter a topic for your post.", "error")
             return
 
         from core.safe_runner import safe_streamlit_action
-        from ui.loading import loading_spinner
 
         agent = ContentPilotAgent(session)
         with loading_spinner("Generating with AI provider..."):
@@ -123,7 +126,7 @@ def render(session: Session) -> None:
             show_success(f"Post saved (ID: {result.post_id}) — pending approval")
 
             with st.container(border=True):
-                st.markdown(section_title("Generated Content Preview"), unsafe_allow_html=True)
+                section_title("Generated Content Preview")
                 st.text_area("Content", value=result.content, height=200, disabled=True, label_visibility="collapsed")
 
                 if result.hashtags:
@@ -136,17 +139,20 @@ def render(session: Session) -> None:
                 mc1, mc2, mc3 = st.columns(3)
                 mc1.write(f"**Provider:** {result.provider_used}")
                 mc2.write(f"**Model:** {result.model_used or 'N/A'}")
-                mc3.markdown(badge("Pending Approval", "pending"), unsafe_allow_html=True)
+                mc3.markdown(badge_html("Pending Approval", "pending"), unsafe_allow_html=True)
 
                 if result.quality_notes:
-                    st.markdown(alert_html(f"Quality Notes: {result.quality_notes}", "info"), unsafe_allow_html=True)
+                    alert_card(f"Quality Notes: {result.quality_notes}", "info")
 
                 bc1, bc2, bc3 = st.columns(3)
                 with bc1:
                     st.button("Save", key="gen_save", disabled=True, use_container_width=True)
                 with bc2:
                     if st.button("Go to Approvals", key="gen_approve", use_container_width=True):
-                        from ui.navigation import navigate
-                        navigate("approvals")
+                        navigate("Approvals")
                 with bc3:
                     st.button("Edit", key="gen_edit", use_container_width=True)
+
+
+def render(session: Session) -> None:
+    render_create_post(session)

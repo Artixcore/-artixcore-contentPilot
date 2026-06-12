@@ -11,24 +11,31 @@ from core.training_data import (
     update_training_feedback,
 )
 from core.utils import format_user_error
-from ui.bootstrap_components import badge, metric_card, section_title
+from ui.components import badge_html, metric_card, page_header, section_title
 
 
-def render(session: Session) -> None:
-    stats = get_training_stats(session)
-    metrics = (
-        '<div class="row g-4 mb-3">'
-        + metric_card("Total Examples", stats["total"], "bi-collection")
-        + metric_card("Approved", stats["approved"], "bi-check-circle")
-        + metric_card("Published", stats["published"], "bi-send")
-        + metric_card("Rejected", stats["rejected"], "bi-x-circle")
-        + metric_card("Avg Quality", stats["avg_quality_score"] or "N/A", "bi-star")
-        + "</div>"
+def render_training_data(session: Session) -> None:
+    page_header(
+        "Training Data",
+        "Manage training examples for fine-tuning, RAG, and brand learning.",
     )
-    st.markdown(metrics, unsafe_allow_html=True)
+
+    stats = get_training_stats(session)
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        metric_card("Total Examples", stats["total"], "📚")
+    with c2:
+        metric_card("Approved", stats["approved"], "✅")
+    with c3:
+        metric_card("Published", stats["published"], "📤")
+    with c4:
+        metric_card("Rejected", stats["rejected"], "❌")
+    with c5:
+        metric_card("Avg Quality", stats["avg_quality_score"] or "N/A", "⭐")
 
     with st.container(border=True):
-        st.markdown(section_title("Export Training Data"), unsafe_allow_html=True)
+        section_title("Export Training Data")
         export_source = st.radio(
             "Export Source",
             ["Content posts", "Chatbot", "Both"],
@@ -59,14 +66,15 @@ def render(session: Session) -> None:
                 data = export_training_data_csv(session, include_rejected=include_rejected)
                 st.download_button("Download CSV", data=data, file_name="training_data.csv", mime="text/csv")
 
-    st.markdown(section_title("Training Examples"), unsafe_allow_html=True)
+    section_title("Training Examples")
     search = st.text_input("Search", placeholder="Filter by platform, status...", key="td_search")
 
     examples = get_all_training_examples(session)
     if search:
         q = search.lower()
         examples = [
-            ex for ex in examples
+            ex
+            for ex in examples
             if q in (ex.platform or "").lower()
             or q in (ex.approval_status or "").lower()
             or q in (ex.input_prompt or "").lower()[:100]
@@ -77,13 +85,18 @@ def render(session: Session) -> None:
         return
 
     for ex in examples:
-        status_badge = badge(ex.approval_status or "unknown", ex.approval_status or "muted")
         st.markdown(
-            f'<div class="cp-card" style="padding:14px 16px;">'
-            f'<div style="display:flex;justify-content:space-between;">'
-            f'<strong>#{ex.id} — Post {ex.post_id} — {ex.platform}</strong> {status_badge}</div>'
-            f'<div style="font-size:0.8125rem;color:#6B7280;margin-top:6px;">'
-            f'Quality: {ex.quality_score or "N/A"} · Used: {ex.used_for_training}</div></div>',
+            f"""
+        <div class="cp-card" style="padding:14px 16px;margin-bottom:10px;">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <strong>#{ex.id} — Post {ex.post_id} — {ex.platform}</strong>
+            {badge_html(ex.approval_status or "unknown", ex.approval_status or "muted")}
+          </div>
+          <div class="text-muted" style="font-size:0.82rem;margin-top:6px;">
+            Quality: {ex.quality_score or "N/A"} · Used: {ex.used_for_training}
+          </div>
+        </div>
+        """,
             unsafe_allow_html=True,
         )
         with st.expander(f"View & Edit — #{ex.id}"):
@@ -131,3 +144,7 @@ def render(session: Session) -> None:
                         )
                 else:
                     st.caption("No events recorded.")
+
+
+def render(session: Session) -> None:
+    render_training_data(session)

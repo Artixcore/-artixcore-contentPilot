@@ -4,9 +4,10 @@ import streamlit as st
 from sqlalchemy.orm import Session
 
 from core.models import PLATFORMS
-from core.publishing import PublishError, get_publishable_posts, get_publisher_statuses, mark_as_manually_posted, publish_post
-from core.utils import format_user_error
-from ui.bootstrap_components import badge, platform_badge, section_title
+from core.publishing import get_publishable_posts, get_publisher_statuses, mark_as_manually_posted, publish_post
+from ui.components import badge_html, connector_row, page_header, platform_badge, section_title
+from ui.loading import loading_spinner
+from ui.notifications import show_error_from_dict, show_success
 
 PLATFORM_LABELS = {
     "facebook": "Facebook",
@@ -17,25 +18,20 @@ PLATFORM_LABELS = {
 }
 
 
-def _connector_html(label: str, configured: bool) -> str:
-    return (
-        f'<div class="card border rounded-3 shadow-sm mb-2 p-3 d-flex justify-content-between">'
-        f'<span class="fw-semibold">{label}</span>'
-        f'{badge("Configured" if configured else "Missing", "success" if configured else "warning")}</div>'
+def render_publish_center(session: Session) -> None:
+    page_header(
+        "Publish Center",
+        "Publish approved or scheduled posts. Human confirmation required.",
     )
 
-
-def render(session: Session) -> None:
     pub_statuses = get_publisher_statuses()
     main_col, side_col = st.columns([0.7, 0.3])
 
     with side_col:
         with st.container(border=True):
-            st.markdown(section_title("Connector Status"), unsafe_allow_html=True)
-            st.markdown(
-                "".join(_connector_html(label, pub_statuses.get(key, False)) for key, label in PLATFORM_LABELS.items()),
-                unsafe_allow_html=True,
-            )
+            section_title("Connector Status")
+            for key, label in PLATFORM_LABELS.items():
+                connector_row(label, pub_statuses.get(key, False))
 
     with main_col:
         posts = get_publishable_posts(session)
@@ -47,12 +43,12 @@ def render(session: Session) -> None:
 
         for post in posts:
             with st.container(border=True):
-                header = (
+                st.markdown(
                     f"#{post.id} — {post.topic[:60]} "
                     f"{platform_badge(post.platform)} "
-                    f"{badge(post.status.replace('_', ' ').title(), 'approved')}"
+                    f"{badge_html(post.status.replace('_', ' ').title(), 'approved')}",
+                    unsafe_allow_html=True,
                 )
-                st.markdown(header, unsafe_allow_html=True)
                 st.caption(
                     f"Provider: {post.provider_used or 'N/A'} · "
                     f"Created: {post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at else 'N/A'}"
@@ -96,8 +92,6 @@ def render(session: Session) -> None:
                         use_container_width=True,
                     ):
                         from core.safe_runner import safe_streamlit_action
-                        from ui.loading import loading_spinner
-                        from ui.notifications import show_error_from_dict, show_success
 
                         with loading_spinner(f"Publishing to {target_platform.replace('_', ' ').title()}..."):
                             outcome = safe_streamlit_action(
@@ -137,3 +131,7 @@ def render(session: Session) -> None:
 
                 if post.publish_error:
                     st.warning(f"Last publish error: {post.publish_error}")
+
+
+def render(session: Session) -> None:
+    render_publish_center(session)

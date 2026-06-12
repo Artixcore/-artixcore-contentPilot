@@ -8,17 +8,14 @@ from sqlalchemy.orm import Session
 from core.agent import AgentValidationError, ContentPilotAgent
 from core.models import PLATFORMS, Campaign
 from core.utils import platforms_from_json, platforms_to_json
-from ui.bootstrap_components import badge, section_title, widget_section_header
+from ui.components import badge_html, page_header, section_title
 
 
 def render(session: Session) -> None:
-    st.markdown(
-        widget_section_header("Campaigns", "Plan and manage content campaigns."),
-        unsafe_allow_html=True,
-    )
+    page_header("Campaigns", "Plan and manage content campaigns.")
 
     with st.container(border=True):
-        st.markdown(section_title("Create Campaign"), unsafe_allow_html=True)
+        section_title("Create Campaign")
         with st.form("campaign_form"):
             name = st.text_input("Campaign Name *")
             goal = st.text_input("Goal")
@@ -61,7 +58,7 @@ def render(session: Session) -> None:
                 session.rollback()
                 st.error(f"Failed to save campaign: {type(exc).__name__}")
 
-    st.markdown(section_title("Your Campaigns"), unsafe_allow_html=True)
+    section_title("Your Campaigns")
     campaigns = session.query(Campaign).order_by(Campaign.created_at.desc()).all()
 
     if not campaigns:
@@ -69,10 +66,15 @@ def render(session: Session) -> None:
         return
 
     for campaign in campaigns:
-        status_badge = badge(campaign.status or "active", "info")
         st.markdown(
-            f'<div class="cp-card"><div style="display:flex;justify-content:space-between;">'
-            f'<strong>{campaign.name}</strong> {status_badge}</div></div>',
+            f"""
+        <div class="cp-card">
+          <div class="d-flex justify-content-between align-items-start gap-2">
+            <strong>{campaign.name}</strong>
+            {badge_html(campaign.status or "active", "info")}
+          </div>
+        </div>
+        """,
             unsafe_allow_html=True,
         )
         with st.expander(f"Details — {campaign.name}"):

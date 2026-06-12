@@ -1,5 +1,6 @@
 """Dashboard page."""
 
+import pandas as pd
 from sqlalchemy.orm import Session
 
 from core.cache import get_or_set
@@ -10,18 +11,18 @@ from core.publishing import get_publisher_statuses
 from core.router import ProviderRouter
 from core.training_data import get_training_stats
 from providers import PROVIDER_UNAVAILABLE_MSG
-from ui.bootstrap_components import (
-    alert_html,
-    badge,
-    escape_html,
-    health_card,
+from ui.components import (
+    badge_html,
     page_header,
     queue_card,
     section_title,
+    status_card,
+    metric_card,
+    alert_card,
 )
 
 
-def render_html(session: Session) -> str:
+def render_dashboard(session: Session) -> None:
     def _dashboard_stats():
         return {
             "total": session.query(Post).count(),
@@ -38,100 +39,58 @@ def render_html(session: Session) -> str:
     pub_statuses = get_or_set("connector_status", get_publisher_statuses)
     pending_posts = session.query(Post).filter(Post.status == "pending_approval").limit(5).all()
 
-    total = stats["total"]
-    pending = stats["pending"]
-    published = stats["published"]
-    chat_convos = stats["chat_convos"]
-    training_total = stats["training_stats"]["total"]
-
-    metrics = f"""
-    <div class="row g-4 mb-2">
-      <div class="col-12 col-sm-6 col-xl">
-        <div class="card cp-metric-card border rounded-4 shadow-sm h-100">
-          <div class="card-body">
-            <div class="cp-metric-icon"><i class="bi bi-file-text"></i></div>
-            <div class="cp-metric-label">Total Posts</div>
-            <div class="cp-metric-value">{total}</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-sm-6 col-xl">
-        <div class="card cp-metric-card border rounded-4 shadow-sm h-100">
-          <div class="card-body">
-            <div class="cp-metric-icon"><i class="bi bi-hourglass-split"></i></div>
-            <div class="cp-metric-label">Pending Approval</div>
-            <div class="cp-metric-value">{pending}</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-sm-6 col-xl">
-        <div class="card cp-metric-card border rounded-4 shadow-sm h-100">
-          <div class="card-body">
-            <div class="cp-metric-icon"><i class="bi bi-check-circle"></i></div>
-            <div class="cp-metric-label">Published</div>
-            <div class="cp-metric-value">{published}</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-sm-6 col-xl">
-        <div class="card cp-metric-card border rounded-4 shadow-sm h-100">
-          <div class="card-body">
-            <div class="cp-metric-icon"><i class="bi bi-chat-dots"></i></div>
-            <div class="cp-metric-label">Chat Conversations</div>
-            <div class="cp-metric-value">{chat_convos}</div>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-sm-6 col-xl">
-        <div class="card cp-metric-card border rounded-4 shadow-sm h-100">
-          <div class="card-body">
-            <div class="cp-metric-icon"><i class="bi bi-bullseye"></i></div>
-            <div class="cp-metric-label">AI Training Examples</div>
-            <div class="cp-metric-value">{training_total}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-    """
-
-    alert = ""
-    if not availability.get("openai") and not availability.get("anthropic"):
-        alert = alert_html(PROVIDER_UNAVAILABLE_MSG, "error")
-
-    providers = f"""
-    <div class="row g-4">
-      <div class="col-12 col-md-6">
-        <div class="card cp-status-card border rounded-4 shadow-sm h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start gap-2">
-              <span class="fw-semibold">OpenAI</span>
-              {badge("Configured" if availability.get("openai") else "Not Configured", "success" if availability.get("openai") else "warning")}
-            </div>
-            <p class="cp-card-subtitle mb-0 mt-2">OpenAI content generation provider.</p>
-          </div>
-        </div>
-      </div>
-      <div class="col-12 col-md-6">
-        <div class="card cp-status-card border rounded-4 shadow-sm h-100">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-start gap-2">
-              <span class="fw-semibold">Anthropic</span>
-              {badge("Configured" if availability.get("anthropic") else "Not Configured", "success" if availability.get("anthropic") else "warning")}
-            </div>
-            <p class="cp-card-subtitle mb-0 mt-2">Anthropic content generation provider.</p>
-          </div>
-        </div>
-      </div>
-    </div>
-    """
-
-    overall = get_overall_status()
-    overall_kind = {"healthy": "success", "warning": "warning", "error": "danger"}.get(overall, "muted")
-    health_rows = "".join(
-        health_card(c["name"].replace("_", " ").title(), c["status"], c["message"])
-        for c in health_checks
+    page_header(
+        "Dashboard",
+        "Overview of your content pipeline, chatbot activity, publishing connectors, and system health.",
     )
 
+    if not availability.get("openai") and not availability.get("anthropic"):
+        alert_card(PROVIDER_UNAVAILABLE_MSG, "error")
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        metric_card("Total Posts", stats["total"], "📝")
+    with c2:
+        metric_card("Pending Approval", stats["pending"], "⏳")
+    with c3:
+        metric_card("Published", stats["published"], "✅")
+    with c4:
+        metric_card("Chat Conversations", stats["chat_convos"], "💬")
+    with c5:
+        metric_card("AI Training Examples", stats["training_stats"]["total"], "🎯")
+
+    section_title("Provider Status")
+    p1, p2 = st.columns(2)
+    with p1:
+        status_card(
+            "OpenAI",
+            "OpenAI configured." if availability.get("openai") else "OpenAI API key missing.",
+            "success" if availability.get("openai") else "warning",
+        )
+    with p2:
+        status_card(
+            "Anthropic",
+            "Anthropic configured." if availability.get("anthropic") else "Anthropic API key missing.",
+            "success" if availability.get("anthropic") else "warning",
+        )
+
+    section_title("System Health")
+    overall = get_overall_status()
+    overall_kind = {"healthy": "success", "warning": "warning", "error": "danger"}.get(overall, "warning")
+    st.markdown(f"Overall: {badge_html(overall.title(), overall_kind)}", unsafe_allow_html=True)
+
+    for i in range(0, len(health_checks), 3):
+        row = health_checks[i : i + 3]
+        cols = st.columns(3)
+        for col, check in zip(cols, row):
+            with col:
+                status_card(
+                    check["name"].replace("_", " ").title(),
+                    check["message"],
+                    check["status"],
+                )
+
+    section_title("Connector Health")
     pub_labels = {
         "linkedin": "LinkedIn",
         "twitter": "X / Twitter",
@@ -139,83 +98,48 @@ def render_html(session: Session) -> str:
         "instagram": "Instagram",
         "website_blog": "Website",
     }
-    connector_cards = "".join(
-        f'<div class="col-12 col-md-6 col-lg-4">'
-        f'<div class="card cp-status-card border rounded-4 shadow-sm h-100"><div class="card-body">'
-        f'<div class="d-flex justify-content-between align-items-start gap-2">'
-        f'<span class="fw-semibold">{escape_html(label)}</span>'
-        f'{badge("Configured" if pub_statuses.get(key, False) else "Missing", "success" if pub_statuses.get(key, False) else "warning")}'
-        f"</div></div></div></div>"
-        for key, label in pub_labels.items()
-    )
+    keys = list(pub_labels.keys())
+    for i in range(0, len(keys), 3):
+        cols = st.columns(3)
+        for col, key in zip(cols, keys[i : i + 3]):
+            with col:
+                configured = pub_statuses.get(key, False)
+                status_card(
+                    pub_labels[key],
+                    "Connector configured." if configured else "Connector not configured.",
+                    "success" if configured else "warning",
+                )
 
-    pending_html = ""
     if pending_posts:
-        cards = ""
+        section_title("Pending Tasks")
         for p in pending_posts:
-            cards += queue_card(
+            queue_card(
                 f"#{p.id} {p.platform.title()}",
-                badge(p.status.replace("_", " ").title(), "pending"),
+                badge_html(p.status.replace("_", " ").title(), "pending"),
                 p.topic[:60],
                 "Awaiting approval",
             )
-        pending_html = section_title("Pending Tasks") + cards
 
+    section_title("Recent Activity")
     posts = session.query(Post).order_by(Post.created_at.desc()).limit(20).all()
     if posts:
-        rows = "".join(
-            f"<tr>"
-            f"<td>{escape_html(str(p.id))}</td>"
-            f"<td>{escape_html(p.platform)}</td>"
-            f"<td>{escape_html(p.topic[:50])}</td>"
-            f"<td>{escape_html(p.status)}</td>"
-            f"<td>{escape_html(p.provider_used or '-')}</td>"
-            f"<td>{escape_html(p.created_at.strftime('%Y-%m-%d %H:%M') if p.created_at else '')}</td>"
-            f"</tr>"
-            for p in posts
+        df = pd.DataFrame(
+            [
+                {
+                    "ID": p.id,
+                    "Platform": p.platform,
+                    "Topic": p.topic[:50],
+                    "Status": p.status,
+                    "Provider": p.provider_used or "-",
+                    "Created": p.created_at.strftime("%Y-%m-%d %H:%M") if p.created_at else "",
+                }
+                for p in posts
+            ]
         )
-        activity_html = f"""
-        {section_title("Recent Activity")}
-        <div class="table-responsive">
-          <table class="table table-hover align-middle bg-white rounded-4 overflow-hidden">
-            <thead class="table-light">
-              <tr>
-                <th>ID</th>
-                <th>Platform</th>
-                <th>Topic</th>
-                <th>Status</th>
-                <th>Provider</th>
-                <th>Created</th>
-              </tr>
-            </thead>
-            <tbody>{rows}</tbody>
-          </table>
-        </div>
-        """
+        st.dataframe(df, use_container_width=True, hide_index=True)
     else:
-        activity_html = (
-            section_title("Recent Activity")
-            + '<p class="text-muted">No posts yet. Create your first post from Create Post or AI Workspace.</p>'
-        )
-
-    return f"""
-    <div class="cp-dashboard-content">
-      {page_header("Dashboard", "Overview of your content pipeline, chatbot activity, publishing connectors, and system health.")}
-      {alert}
-      {metrics}
-      {section_title("Provider Status")}
-      {providers}
-      {section_title("System Health")}
-      <p class="mb-3">Overall: {badge(overall.title(), overall_kind)}</p>
-      <div class="row g-4">{health_rows}</div>
-      {section_title("Connector Health")}
-      <div class="row g-4">{connector_cards}</div>
-      {pending_html}
-      {activity_html}
-    </div>
-  """
+        st.caption("No posts yet. Create your first post from Create Post or AI Workspace.")
 
 
 def render(session: Session) -> None:
-    """Backward-compatible alias — layout calls render_html directly."""
-    pass
+    render_dashboard(session)

@@ -15,8 +15,8 @@ from core.approvals import (
     schedule_post,
     update_content,
 )
-from core.utils import format_user_error, hashtags_from_json
-from ui.bootstrap_components import badge, platform_badge, queue_card, section_title
+from core.utils import hashtags_from_json
+from ui.components import badge_html, page_header, platform_badge, queue_card, section_title
 
 
 def _render_post_detail(session: Session, post) -> None:
@@ -99,24 +99,29 @@ def _render_post_detail(session: Session, post) -> None:
                 st.error(msg)
 
 
-def render(session: Session) -> None:
+def render_approvals(session: Session) -> None:
+    page_header(
+        "Approvals",
+        "Review, edit, approve, or reject pending content. No auto-publishing.",
+    )
+
     pending = get_pending_posts(session)
     if not pending:
         st.info("No posts pending approval.")
         return
 
     st.markdown(f"**{len(pending)}** post(s) awaiting review.")
-    st.markdown(section_title("Approval Queue"), unsafe_allow_html=True)
+    section_title("Approval Queue")
 
     for post in pending:
-        badges = f"{platform_badge(post.platform)} {badge('Pending', 'pending')}"
-        st.markdown(queue_card(
+        badges = f"{platform_badge(post.platform)} {badge_html('Pending', 'pending')}"
+        queue_card(
             f"#{post.id} — {post.topic[:60]}",
             badges,
             post.content or "",
             f"Provider: {post.provider_used or 'N/A'} · {post.created_at.strftime('%Y-%m-%d %H:%M') if post.created_at else ''}",
-        ), unsafe_allow_html=True)
-        ac1, ac2, ac3 = st.columns([1, 1, 4])
+        )
+        ac1, ac2, _ = st.columns([1, 1, 4])
         with ac1:
             view = st.button("View Details", key=f"view_{post.id}", use_container_width=True)
         with ac2:
@@ -140,3 +145,7 @@ def render(session: Session) -> None:
                     _render_post_detail(session, post)
 
         st.write("")
+
+
+def render(session: Session) -> None:
+    render_approvals(session)

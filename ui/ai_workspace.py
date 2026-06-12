@@ -9,12 +9,13 @@ from core.agent import AgentValidationError, ContentPilotAgent
 from core.router import ProviderRouter
 from core.utils import format_user_error
 from providers import PROVIDER_UNAVAILABLE_MSG
-from ui.bootstrap_components import (
-    chat_message_html,
+from ui.components import (
+    chat_message,
     date_divider,
+    page_header,
     section_title,
     template_card,
-    welcome_hero,
+    welcome_card,
 )
 
 TEMPLATES = [
@@ -62,7 +63,7 @@ def _handle_prompt(session: Session, prompt: str, router: ProviderRouter) -> Non
     if any(kw in lower for kw in ("chatbot", "reply", "message", "inbox")):
         _add_message(
             "assistant",
-            "I can help draft chatbot replies. Open **Chat Inbox** to simulate incoming messages, "
+            "I can help draft chatbot replies. Open Chat Inbox to simulate incoming messages, "
             "approve AI drafts, and send replies to connected platforms.",
             "ContentPilot",
         )
@@ -71,7 +72,7 @@ def _handle_prompt(session: Session, prompt: str, router: ProviderRouter) -> Non
     if any(kw in lower for kw in ("publish", "schedule", "post to")):
         _add_message(
             "assistant",
-            "For publishing, approve content in **Approvals** then use **Publish Center** "
+            "For publishing, approve content in Approvals then use Publish Center "
             "to send to LinkedIn, Facebook, Instagram, X, or your website.",
             "ContentPilot",
         )
@@ -104,9 +105,9 @@ def _handle_prompt(session: Session, prompt: str, router: ProviderRouter) -> Non
             tags = " ".join(f"#{h.lstrip('#')}" for h in (result.hashtags or []))
             response = f"{result.content}\n\n"
             if tags:
-                response += f"**Hashtags:** {tags}\n\n"
+                response += f"Hashtags: {tags}\n\n"
             if result.image_prompt:
-                response += f"**Image prompt:** {result.image_prompt}\n\n"
+                response += f"Image prompt: {result.image_prompt}\n\n"
             response += (
                 f"Saved as post #{result.post_id} (pending approval). "
                 f"Review in Approvals or create more content here."
@@ -118,33 +119,19 @@ def _handle_prompt(session: Session, prompt: str, router: ProviderRouter) -> Non
             _add_message("assistant", format_user_error("Generation failed. Please try again.", exc))
 
 
-def render_static_html(session: Session) -> str:
-    messages = st.session_state.get("chat_messages", [])
-
-    if not messages:
-        html = welcome_hero()
-    else:
-        html = date_divider("TODAY")
-        for msg in messages:
-            html += chat_message_html(
-                msg["role"] if msg["role"] == "user" else "assistant",
-                msg["content"],
-                provider=msg.get("provider", ""),
-                show_actions=msg["role"] != "user",
-            )
-
-    if not messages:
-        html += section_title("Start with a template")
-        html += '<div class="row g-3">' + "".join(
-            template_card(title, desc) for title, desc in TEMPLATES
-        ) + "</div>"
-
-    return html
-
-
-def render_widgets(session: Session) -> None:
+def render_ai_workspace(session: Session) -> None:
     router = ProviderRouter(session=session)
     messages = st.session_state.get("chat_messages", [])
+
+    page_header("AI Workspace", "Ask ContentPilot to create, reply, plan, or publish.")
+
+    if not messages:
+        welcome_card()
+    else:
+        date_divider("TODAY")
+        for msg in messages:
+            role = "user" if msg["role"] == "user" else "assistant"
+            chat_message(role, msg["content"], provider=msg.get("provider", ""))
 
     with st.container(border=True):
         prompt = st.text_area(
@@ -172,11 +159,13 @@ def render_widgets(session: Session) -> None:
             st.rerun()
 
     if not messages:
+        section_title("Start with a template")
         tc = st.columns(2)
-        for i, (_, template) in enumerate(TEMPLATES):
+        for i, (title, desc) in enumerate(TEMPLATES):
             with tc[i % 2]:
+                template_card(title, desc)
                 if st.button("Use template", key=f"tpl_{i}", use_container_width=True):
-                    _handle_prompt(session, template, router)
+                    _handle_prompt(session, desc, router)
                     st.rerun()
 
     if not router.has_any_provider():
@@ -184,5 +173,4 @@ def render_widgets(session: Session) -> None:
 
 
 def render(session: Session) -> None:
-    """Backward-compatible alias — layout calls render_static_html and render_widgets."""
-    render_widgets(session)
+    render_ai_workspace(session)

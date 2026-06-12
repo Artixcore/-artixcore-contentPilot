@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ui.bootstrap_theme import init_theme, load_css, load_js
+import streamlit as st
 
-# Brand tokens (used by components for inline HTML)
 PRIMARY = "#D97706"
 PRIMARY_DARK = "#B45309"
 SECONDARY = "#F59E0B"
@@ -35,6 +34,27 @@ FONT_STACK = (
 )
 
 _ASSETS_ROOT = Path(__file__).resolve().parent.parent / "assets"
+
+
+def load_bootstrap() -> None:
+    st.markdown(
+        """
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def load_css() -> None:
+    css_path = _ASSETS_ROOT / "styles" / "app.css"
+    if css_path.exists():
+        st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
+
+
+def init_theme() -> None:
+    load_bootstrap()
+    load_css()
 
 
 def inject_theme() -> None:

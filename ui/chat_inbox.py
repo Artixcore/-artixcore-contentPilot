@@ -19,19 +19,26 @@ from core.chat_database import get_conversation_messages, list_conversations
 from core.models import CHAT_CONVERSATION_STATUSES, CHAT_PLATFORMS
 from core.router import ProviderRouter
 from core.utils import format_user_error
-from ui.bootstrap_components import (
-    alert_html,
-    badge,
-    chat_message_html,
+from ui.components import (
+    alert_card,
+    badge_html,
+    chat_message,
+    inbox_item,
+    page_header,
     platform_badge,
     section_title,
 )
 
 
-def render(session: Session) -> None:
+def render_chat_inbox(session: Session) -> None:
+    page_header(
+        "Chat Inbox",
+        "Review conversations, approve AI replies, and simulate incoming messages.",
+    )
+
     router = ProviderRouter(session=session)
     if not router.has_any_provider():
-        st.markdown(alert_html(CHATBOT_PROVIDER_UNAVAILABLE_MSG, "error"), unsafe_allow_html=True)
+        alert_card(CHATBOT_PROVIDER_UNAVAILABLE_MSG, "error")
 
     with st.expander("Simulate Incoming Message (local testing)", expanded=False):
         with st.form("simulate_message"):
@@ -43,7 +50,7 @@ def render(session: Session) -> None:
                 if not sim_message.strip():
                     st.warning("Message text is required.")
                 elif not router.has_any_provider():
-                    st.markdown(alert_html(CHATBOT_PROVIDER_UNAVAILABLE_MSG, "error"), unsafe_allow_html=True)
+                    alert_card(CHATBOT_PROVIDER_UNAVAILABLE_MSG, "error")
                 else:
                     try:
                         result = simulate_incoming_message(
@@ -63,7 +70,7 @@ def render(session: Session) -> None:
                             st.error(result.error or "Failed to generate reply.")
                     except Exception as exc:
                         session.rollback()
-                        st.markdown(alert_html(format_user_error("Simulation failed.", exc), "error"), unsafe_allow_html=True)
+                        alert_card(format_user_error("Simulation failed.", exc), "error")
 
     f1, f2, f3, f4 = st.columns(4)
     with f1:
@@ -93,21 +100,21 @@ def render(session: Session) -> None:
     list_col, thread_col = st.columns([0.35, 0.65])
 
     with list_col:
-        with st.container(border=True):
-            st.markdown(section_title("Conversations"), unsafe_allow_html=True)
+        section_title("Conversations")
         for conv in conversations:
             active = st.session_state.inbox_selected_id == conv.id
-            item_cls = "cp-inbox-item active" if active else "cp-inbox-item"
             conv_msgs = get_conversation_messages(session, conv.id)
-            preview = (conv_msgs[-1].message_text or conv_msgs[-1].ai_generated_reply or "No messages")[:60] if conv_msgs else "No messages"
-            st.markdown(
-                f'<div class="{item_cls}">'
-                f'<div style="display:flex;justify-content:space-between;">'
-                f'<strong>{conv.user_display_name or "Guest"}</strong>'
-                f'{badge(conv.status, "info")}</div>'
-                f'<div style="font-size:0.8125rem;color:#6B7280;margin:4px 0;">{preview[:60]}</div>'
-                f'{platform_badge(conv.platform)}</div>',
-                unsafe_allow_html=True,
+            preview = (
+                (conv_msgs[-1].message_text or conv_msgs[-1].ai_generated_reply or "No messages")[:60]
+                if conv_msgs
+                else "No messages"
+            )
+            inbox_item(
+                conv.user_display_name or "Guest",
+                preview,
+                conv.status,
+                conv.platform,
+                active=active,
             )
             if st.button(f"Open #{conv.id}", key=f"open_conv_{conv.id}", use_container_width=True):
                 st.session_state.inbox_selected_id = conv.id
@@ -122,19 +129,16 @@ def render(session: Session) -> None:
             st.markdown(
                 f"**{conv.user_display_name or 'Guest'}** · "
                 f"{platform_badge(conv.platform)} · "
-                f"{badge(conv.status, 'info')}",
+                f"{badge_html(conv.status, 'info')}",
                 unsafe_allow_html=True,
             )
 
             for msg in messages:
                 text = msg.message_text or msg.ai_generated_reply or msg.final_reply or ""
                 if msg.sender_type == "user":
-                    st.markdown(chat_message_html("user", text), unsafe_allow_html=True)
+                    chat_message("user", text)
                 else:
-                    st.markdown(
-                        chat_message_html("assistant", text, provider=msg.provider_used or ""),
-                        unsafe_allow_html=True,
-                    )
+                    chat_message("assistant", text, provider=msg.provider_used or "")
 
                     if msg.sender_type == "bot" and msg.ai_generated_reply:
                         if msg.safety_notes:
@@ -164,7 +168,7 @@ def render(session: Session) -> None:
                         with b3:
                             if st.button("Regenerate", key=f"regen_{msg.id}"):
                                 if not router.has_any_provider():
-                                    st.markdown(alert_html(CHATBOT_PROVIDER_UNAVAILABLE_MSG, "error"), unsafe_allow_html=True)
+                                    alert_card(CHATBOT_PROVIDER_UNAVAILABLE_MSG, "error")
                                 else:
                                     result = regenerate_message(session, msg.id)
                                     st.success("Regenerated.") if result.success else st.error(result.error or "Failed")
@@ -175,7 +179,7 @@ def render(session: Session) -> None:
                                 st.success(message) if ok else st.error(message)
                                 st.rerun()
 
-            st.markdown(section_title("Manual Reply"), unsafe_allow_html=True)
+            section_title("Manual Reply")
             manual_text = st.text_area("Manual reply text", key="manual_reply", label_visibility="collapsed")
             mc1, mc2, mc3 = st.columns(3)
             with mc1:
@@ -194,7 +198,7 @@ def render(session: Session) -> None:
                             st.rerun()
                         except Exception as exc:
                             session.rollback()
-                            st.markdown(alert_html(format_user_error("Manual reply failed.", exc), "error"), unsafe_allow_html=True)
+                            alert_card(format_user_error("Manual reply failed.", exc), "error")
             with mc2:
                 if st.button("Human Handoff", use_container_width=True):
                     ok, message = handoff_conversation(session, conv.id)
@@ -205,3 +209,7 @@ def render(session: Session) -> None:
                     ok, message = close_conversation(session, conv.id)
                     st.success(message) if ok else st.error(message)
                     st.rerun()
+
+
+def render(session: Session) -> None:
+    render_chat_inbox(session)

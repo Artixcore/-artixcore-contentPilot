@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import streamlit as st
 
 NAV_OPTIONS: list[tuple[str, str]] = [
@@ -31,23 +29,11 @@ SIDEBAR_WORKSPACES: list[str] = [
     "General",
 ]
 
-PAGE_LABELS: dict[str, str] = {
-    "dashboard": "Dashboard",
-    "ai_workspace": "AI Workspace",
-    "create_post": "Create Post",
-    "chat_inbox": "Chat Inbox",
-    "publish_center": "Publish Center",
-    "approvals": "Approvals",
-    "chat_control": "Chat Control",
-    "training_data": "Training Data",
-    "brand_settings": "Brand Settings",
-    "provider_settings": "Provider Settings",
-    "publishing_settings": "Publishing Settings",
-    "exports": "Exports",
-}
+PAGE_LABELS: dict[str, str] = {key: label for label, key in NAV_OPTIONS}
 
 PAGE_SUBTITLES: dict[str, str] = {
-    "ai_workspace": "Your AI content, chatbot, and publishing command center.",
+    "dashboard": "Overview of your content pipeline, chatbot activity, publishing connectors, and system health.",
+    "ai_workspace": "Ask ContentPilot to create, reply, plan, or publish.",
     "create_post": "Generate AI-powered content for your selected platform.",
     "approvals": "Review, edit, approve, or reject pending content. No auto-publishing.",
     "chat_inbox": "Review conversations, approve AI replies, and simulate incoming messages.",
@@ -62,39 +48,17 @@ PAGE_SUBTITLES: dict[str, str] = {
 
 
 def init_navigation() -> None:
-    defaults: dict[str, Any] = {
-        "nav_page": "dashboard",
-        "active_workspace": "Artixcore",
-        "chat_messages": [],
-        "workspace_mode": "welcome",
-    }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = []
+    if "active_workspace" not in st.session_state:
+        st.session_state.active_workspace = "Artixcore"
 
 
-def navigate(page_key: str) -> None:
-    st.session_state.nav_page = page_key
-    st.query_params["view"] = page_key
+def navigate(page_label: str) -> None:
+    """Switch to a page by display label."""
+    st.session_state["page"] = page_label
+    st.session_state["page_radio"] = page_label
     st.rerun()
-
-
-def sync_view_from_query(pages: dict) -> tuple[str, str]:
-    """Read view/workspace from query params and sync session state."""
-    view = st.query_params.get("view", "dashboard")
-    if view not in pages:
-        view = "dashboard"
-    st.session_state.nav_page = view
-
-    workspace = st.query_params.get("workspace", st.session_state.get("active_workspace", "Artixcore"))
-    if workspace not in SIDEBAR_WORKSPACES:
-        workspace = "Artixcore"
-    st.session_state.active_workspace = workspace
-    return view, workspace
-
-
-def get_current_page_label() -> str:
-    return PAGE_LABELS.get(st.session_state.nav_page, "Dashboard")
 
 
 def label_for_key(page_key: str) -> str:
@@ -106,7 +70,3 @@ def key_for_label(label: str) -> str:
         if nav_label == label:
             return key
     return "dashboard"
-
-
-def current_nav_label() -> str:
-    return label_for_key(st.session_state.nav_page)

@@ -21,21 +21,12 @@ from core.chat_database import get_blocked_keywords, get_chatbot_settings, get_d
 from core.models import CHAT_PLATFORMS
 from core.router import ProviderRouter
 from core.utils import format_user_error, mask_secret
-from ui.bootstrap_components import alert_html, badge, metric_card, section_title
+from ui.components import alert_card, connector_row, metric_card, page_header, section_title
 
 
-def _connector_html(name: str, configured: bool, detail: str = "") -> str:
-    desc = f'<p class="cp-card-subtitle mb-0 mt-2">{detail}</p>' if detail else ""
-    return (
-        f'<div class="card border rounded-3 shadow-sm mb-2 p-3">'
-        f'<div class="d-flex justify-content-between align-items-start gap-2">'
-        f'<span class="fw-semibold">{name}</span>'
-        f'{badge("Configured" if configured else "Not Configured", "success" if configured else "warning")}'
-        f"</div>{desc}</div>"
-    )
+def render_chat_control(session: Session) -> None:
+    page_header("Chat Control", "Configure and monitor the Artixcore AI chatbot.")
 
-
-def render(session: Session) -> None:
     router = ProviderRouter(session=session)
     stats = get_dashboard_stats(session)
     settings = get_chatbot_settings(session)
@@ -44,26 +35,29 @@ def render(session: Session) -> None:
     blocked = get_blocked_keywords(settings)
 
     if not router.has_any_provider():
-        st.markdown(alert_html(CHATBOT_PROVIDER_UNAVAILABLE_MSG, "error"), unsafe_allow_html=True)
+        alert_card(CHATBOT_PROVIDER_UNAVAILABLE_MSG, "error")
 
     tg_label = "Running" if tg_status["running"] else ("Ready" if tg_status["configured"] else "Off")
-    metrics = (
-        '<div class="row g-4 mb-3">'
-        + metric_card("Auto Reply", "ON" if stats["auto_reply_enabled"] else "OFF", "bi-lightning")
-        + metric_card("Approval Mode", "ON" if stats["approval_required"] else "OFF", "bi-check2-square")
-        + metric_card("Human Handoff", "ON" if stats["human_handoff_enabled"] else "OFF", "bi-person")
-        + metric_card("Pending Replies", stats["pending_replies"], "bi-hourglass")
-        + metric_card("Open Conversations", stats["open_conversations"], "bi-chat-dots")
-        + metric_card("Telegram", tg_label, "bi-telegram")
-        + "</div>"
-    )
-    st.markdown(metrics, unsafe_allow_html=True)
+
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    with m1:
+        metric_card("Auto Reply", "ON" if stats["auto_reply_enabled"] else "OFF", "⚡")
+    with m2:
+        metric_card("Approval Mode", "ON" if stats["approval_required"] else "OFF", "✅")
+    with m3:
+        metric_card("Human Handoff", "ON" if stats["human_handoff_enabled"] else "OFF", "👤")
+    with m4:
+        metric_card("Pending Replies", stats["pending_replies"], "⏳")
+    with m5:
+        metric_card("Open Conversations", stats["open_conversations"], "💬")
+    with m6:
+        metric_card("Telegram", tg_label, "📡")
 
     col1, col2 = st.columns(2)
 
     with col1:
         with st.container(border=True):
-            st.markdown(section_title("Chatbot Identity"), unsafe_allow_html=True)
+            section_title("Chatbot Identity")
             chatbot_name = st.text_input("Chatbot Name", value=settings.chatbot_name, key="cc_name")
             personality = st.selectbox(
                 "Personality Type",
@@ -89,7 +83,7 @@ def render(session: Session) -> None:
                 key="cc_custom",
             )
         with st.container(border=True):
-            st.markdown(section_title("Behavior"), unsafe_allow_html=True)
+            section_title("Behavior")
             auto_reply = st.toggle("Enable Auto Reply", value=settings.auto_reply_enabled, key="cc_auto")
             approval_required = st.toggle("Require Approval Before Sending", value=settings.approval_required, key="cc_approval")
             human_handoff = st.toggle("Enable Human Handoff", value=settings.human_handoff_enabled, key="cc_handoff")
@@ -119,7 +113,7 @@ def render(session: Session) -> None:
             )
     with col2:
         with st.container(border=True):
-            st.markdown(section_title("Safety"), unsafe_allow_html=True)
+            section_title("Safety")
             blocked_keywords = st.text_area(
                 "Blocked Keywords (one per line)",
                 value="\n".join(blocked),
@@ -149,31 +143,25 @@ def render(session: Session) -> None:
                     key="cc_bh_end",
                 )
         with st.container(border=True):
-            st.markdown(section_title("Telegram Controller"), unsafe_allow_html=True)
+            section_title("Telegram Controller")
             tg_configured = tg_status.get("configured", False)
-            st.markdown(
-                _connector_html(
-                    "Telegram Bot",
-                    tg_configured,
-                    f"Status: {'Running' if tg_status.get('running') else 'Ready' if tg_configured else 'Off'}",
-                ),
-                unsafe_allow_html=True,
+            connector_row(
+                "Telegram Bot",
+                tg_configured,
+                f"Status: {'Running' if tg_status.get('running') else 'Ready' if tg_configured else 'Off'}",
             )
             st.caption(f"Token: {mask_secret(os.getenv('TELEGRAM_BOT_TOKEN', ''))}")
             st.caption(f"Admin IDs: {tg_status['admin_count']} configured")
             st.caption(f"Pending replies: {stats['pending_replies']}")
         with st.container(border=True):
-            st.markdown(section_title("Platform Connectors"), unsafe_allow_html=True)
+            section_title("Platform Connectors")
             availability = router.get_availability_status()
-            connectors = [
-                _connector_html("OpenAI", bool(availability.get("openai")), mask_secret(os.getenv("OPENAI_API_KEY", ""))),
-                _connector_html("Anthropic", bool(availability.get("anthropic")), mask_secret(os.getenv("ANTHROPIC_API_KEY", ""))),
-            ]
+            connector_row("OpenAI", bool(availability.get("openai")), mask_secret(os.getenv("OPENAI_API_KEY", "")))
+            connector_row("Anthropic", bool(availability.get("anthropic")), mask_secret(os.getenv("ANTHROPIC_API_KEY", "")))
             for platform in CHAT_PLATFORMS:
                 ch = channels.get(platform)
                 configured = bool(ch and ch.configured)
-                connectors.append(_connector_html(platform.title(), configured, ch.message if ch else "Not configured"))
-            st.markdown("".join(connectors), unsafe_allow_html=True)
+                connector_row(platform.title(), configured, ch.message if ch else "Not configured")
 
     if st.button("Save Chat Control Settings", type="primary", use_container_width=True):
         try:
@@ -203,4 +191,8 @@ def render(session: Session) -> None:
             st.rerun()
         except Exception as exc:
             session.rollback()
-            st.markdown(alert_html(format_user_error("Failed to save settings.", exc), "error"), unsafe_allow_html=True)
+            alert_card(format_user_error("Failed to save settings.", exc), "error")
+
+
+def render(session: Session) -> None:
+    render_chat_control(session)

@@ -12,13 +12,15 @@ def test_app_css_exists_and_has_core_classes():
     assert css_path.is_file(), "assets/styles/app.css must exist"
     css = css_path.read_text(encoding="utf-8")
     assert ".cp-metric-card" in css
-    assert ".cp-shell" in css
-    assert ".cp-icon-rail" in css
-    assert ".cp-bg" in css
-    assert '[data-testid="stSidebar"]' in css or "stSidebar" in css
+    assert ".cp-topbar" in css
+    assert ".cp-shell" not in css
+    assert ".cp-icon-rail" not in css
+    assert ".cp-bg" not in css
+    assert '[data-testid="stSidebar"]' in css
+    assert '[data-testid="stSidebar"]' in css
+    assert 'stSidebar"] {\n  display: none' not in css
     assert ".block-container" in css
-    assert ".cp-shell-rail" not in css
-    assert ".cp-page-bg" not in css
+    assert "radial-gradient" not in css
 
 
 def test_app_css_has_no_javascript():
@@ -29,12 +31,10 @@ def test_app_css_has_no_javascript():
     assert "<script>" not in css
 
 
-def test_app_js_has_no_css():
+def test_app_js_is_disabled():
     js = (ROOT / "assets" / "js" / "app.js").read_text(encoding="utf-8")
-    assert "@import" not in js
-    assert "font-family:" not in js
-    assert "border-radius:" not in js
-    assert ":root" not in js
+    assert "addEventListener" not in js
+    assert "DOMContentLoaded" not in js
 
 
 def test_no_partial_html_wrappers_in_ui():
@@ -42,6 +42,8 @@ def test_no_partial_html_wrappers_in_ui():
     ui_dir = ROOT / "ui"
     offenders: list[str] = []
     for path in ui_dir.glob("*.py"):
+        if path.name.startswith("bootstrap_"):
+            continue
         text = path.read_text(encoding="utf-8")
         if "st.markdown('</div>" in text or 'st.markdown("</div>' in text:
             offenders.append(str(path.relative_to(ROOT)))
@@ -56,13 +58,13 @@ def test_load_bootstrap_injects_cdn(monkeypatch):
 
     monkeypatch.setattr("streamlit.markdown", fake_markdown)
 
-    from ui.bootstrap_theme import load_bootstrap
+    from ui.theme import load_bootstrap
 
     load_bootstrap()
     assert len(captured) == 1
     assert "bootstrap@5.3.3" in captured[0]
     assert "bootstrap-icons" in captured[0]
-    assert "function getShell" not in captured[0]
+    assert "<script>" not in captured[0]
 
 
 def test_load_css_reads_file(monkeypatch):
@@ -73,47 +75,26 @@ def test_load_css_reads_file(monkeypatch):
 
     monkeypatch.setattr("streamlit.markdown", fake_markdown)
 
-    from ui.bootstrap_theme import load_css
+    from ui.theme import load_css
 
     load_css()
     assert len(captured) == 1
     assert ".cp-metric-card" in captured[0]
-    assert "function getShell" not in captured[0]
 
 
-def test_load_js_uses_components_html(monkeypatch):
-    captured: list[str] = []
-
-    def fake_html(body: str, height: int = 0, **kwargs) -> None:
-        captured.append(body)
-
-    monkeypatch.setattr("streamlit.components.v1.html", fake_html)
-
-    from ui.bootstrap_theme import load_js
-
-    load_js()
-    assert len(captured) == 1
-    assert "<script>" in captured[0]
-    assert "data-cp-mobile-menu" in captured[0] or "DOMContentLoaded" in captured[0]
-
-
-def test_init_theme_calls_all_loaders(monkeypatch):
+def test_init_theme_calls_loaders(monkeypatch):
     calls: list[str] = []
 
     monkeypatch.setattr(
-        "ui.bootstrap_theme.load_bootstrap",
+        "ui.theme.load_bootstrap",
         lambda: calls.append("bootstrap"),
     )
     monkeypatch.setattr(
-        "ui.bootstrap_theme.load_css",
+        "ui.theme.load_css",
         lambda: calls.append("css"),
     )
-    monkeypatch.setattr(
-        "ui.bootstrap_theme.load_js",
-        lambda: calls.append("js"),
-    )
 
-    from ui.bootstrap_theme import init_theme
+    from ui.theme import init_theme
 
     init_theme()
-    assert calls == ["bootstrap", "css", "js"]
+    assert calls == ["bootstrap", "css"]

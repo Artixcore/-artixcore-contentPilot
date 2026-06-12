@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from core.publishing import get_publisher_statuses
 from core.utils import mask_secret
-from ui.bootstrap_components import badge, section_title
+from ui.components import page_header, section_title, status_card
 
 PLATFORM_CONFIG = {
     "linkedin": {
@@ -49,19 +49,23 @@ PLATFORM_CONFIG = {
 }
 
 
-def render(session: Session) -> None:
+def render_publishing_settings(session: Session) -> None:
+    page_header(
+        "Publishing Settings",
+        "Social platform connector status. Tokens loaded from `.env`.",
+    )
+
     statuses = get_publisher_statuses()
 
     for platform_key, config in PLATFORM_CONFIG.items():
         configured = statuses.get(platform_key, False)
         with st.container(border=True):
-            st.markdown(
-                f'<div class="card border rounded-3 shadow-sm mb-2 p-3 d-flex justify-content-between">'
-                f'<span class="fw-semibold">{config["label"]}</span>'
-                f'{badge("Configured" if configured else "Missing", "success" if configured else "warning")}</div>',
-                unsafe_allow_html=True,
+            status_card(
+                config["label"],
+                "Connector configured." if configured else "Required tokens missing.",
+                "success" if configured else "warning",
             )
-            st.markdown(section_title("Required Environment Variables"), unsafe_allow_html=True)
+            section_title("Required Environment Variables")
             for env_name, _ in config["vars"]:
                 value = os.getenv(env_name, "")
                 if "TOKEN" in env_name or "SECRET" in env_name or "KEY" in env_name:
@@ -74,3 +78,7 @@ def render(session: Session) -> None:
         "OAuth login is not implemented yet. Configure access tokens manually in `.env`. "
         "Production publishing may require platform review and approved permissions."
     )
+
+
+def render(session: Session) -> None:
+    render_publishing_settings(session)

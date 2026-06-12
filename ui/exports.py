@@ -3,6 +3,7 @@
 import streamlit as st
 from sqlalchemy.orm import Session
 
+from core.chat_database import export_chatbot_training_jsonl, export_combined_training_jsonl
 from core.exports import (
     export_posts_csv,
     export_posts_json,
@@ -12,9 +13,10 @@ from core.exports import (
     filter_posts,
 )
 from core.models import PLATFORMS
-from core.chat_database import export_chatbot_training_jsonl, export_combined_training_jsonl
 from core.training_data import export_training_data_csv, export_training_data_jsonl
-from ui.bootstrap_components import section_title
+from ui.components import page_header, section_title
+from ui.loading import loading_spinner
+from ui.notifications import show_error_from_dict
 
 EXPORT_TYPES = [
     "Posts — CSV",
@@ -29,10 +31,10 @@ EXPORT_TYPES = [
 ]
 
 
-def render(session: Session) -> None:
+def render_exports(session: Session) -> None:
+    page_header("Exports", "Download posts, training data, and activity logs.")
+
     from core.errors import ExportError
-    from ui.loading import loading_spinner
-    from ui.notifications import show_error_from_dict
 
     with st.container(border=True):
         export_type = st.selectbox("Export Type", EXPORT_TYPES)
@@ -40,7 +42,7 @@ def render(session: Session) -> None:
 
         posts = []
         if export_type.startswith("Posts"):
-            st.markdown(section_title("Filters"), unsafe_allow_html=True)
+            section_title("Filters")
             filter_type = st.selectbox(
                 "Filter",
                 options=["all", "approved", "pending", "published", "rejected"],
@@ -113,3 +115,7 @@ def render(session: Session) -> None:
             from core.error_handler import handle_exception
 
             show_error_from_dict(handle_exception(exc, context="export"))
+
+
+def render(session: Session) -> None:
+    render_exports(session)

@@ -1,218 +1,256 @@
-"""Backward-compatible UI component wrappers — delegates to bootstrap_components."""
+"""Self-contained UI component helpers for Streamlit pages."""
 
 from __future__ import annotations
 
-from typing import Any
+import html
 
 import streamlit as st
 
-from ui.bootstrap_components import (
-    alert_html,
-    badge,
-    chat_message_html,
-    date_divider,
-    health_card,
-    html_escape,
-    page_header,
-    platform_badge,
-    provider_card,
-    queue_card,
-    section_title,
-    template_card,
-    welcome_hero,
-    widget_section_header,
-)
-from ui.theme import TEXT_MUTED, TEXT_PRIMARY, TEXT_SECONDARY
-
-_esc = html_escape
+from ui.theme import TEXT_SECONDARY
 
 
-def render_page_header(title: str, subtitle: str | None = None) -> None:
-    st.markdown(widget_section_header(title, subtitle), unsafe_allow_html=True)
+def esc(value: str | int | float | None) -> str:
+    return html.escape(str(value or ""))
 
 
-def render_section_title(title: str, subtitle: str | None = None) -> None:
-    st.markdown(section_title(title), unsafe_allow_html=True)
-    if subtitle:
-        st.markdown(
-            f'<p style="font-size:0.875rem;color:{TEXT_SECONDARY};margin:-8px 0 14px 0;">{_esc(subtitle)}</p>',
-            unsafe_allow_html=True,
-        )
-
-
-def render_section_header(title: str) -> None:
-    render_section_title(title)
-
-
-def render_card(
-    title: str | None = None,
-    subtitle: str | None = None,
-    body_html: str | None = None,
-    class_name: str = "",
-    *,
-    content_html: str | None = None,
-    panel: bool = False,
-) -> None:
-    if content_html is not None:
-        cls = "cp-card-panel" if panel else "cp-card"
-        st.markdown(f'<div class="{cls}">{content_html}</div>', unsafe_allow_html=True)
-        return
-
-    extra = f" {class_name}" if class_name else ""
-    cls = f"cp-card{extra}"
-    title_html = f'<div class="cp-card-title">{_esc(title)}</div>' if title else ""
-    sub_html = f'<div class="cp-card-subtitle">{_esc(subtitle)}</div>' if subtitle else ""
-    body = body_html or ""
+def page_header(title: str, subtitle: str = "") -> None:
+    sub = f'<p class="cp-page-subtitle">{esc(subtitle)}</p>' if subtitle else ""
     st.markdown(
-        f'<div class="{cls}">{title_html}{sub_html}{body}</div>',
+        f"""
+    <div>
+      <h1 class="cp-page-title">{esc(title)}</h1>
+      {sub}
+    </div>
+    """,
         unsafe_allow_html=True,
     )
 
 
-def render_metric_card(label: str, value: str | int, icon: str = "bi-bar-chart") -> None:
-    bi = icon if icon.startswith("bi-") else "bi-bar-chart"
+def section_title(title: str) -> None:
+    st.markdown(f'<div class="cp-section-title">{esc(title)}</div>', unsafe_allow_html=True)
+
+
+def metric_card(label: str, value: str | int, icon: str = "📊") -> None:
     st.markdown(
-        f'<div class="card cp-metric-card border rounded-4 shadow-sm mb-2 p-3">'
-        f'<div class="cp-metric-icon"><i class="bi {bi}"></i></div>'
-        f'<div class="cp-metric-label">{_esc(label)}</div>'
-        f'<div class="cp-metric-value">{_esc(str(value))}</div></div>',
+        f"""
+    <div class="cp-metric-card">
+      <div class="cp-metric-icon">{esc(icon)}</div>
+      <div class="cp-metric-label">{esc(label)}</div>
+      <div class="cp-metric-value">{esc(value)}</div>
+    </div>
+    """,
         unsafe_allow_html=True,
     )
 
 
-def render_status_badge(label: str, status: str = "muted") -> str:
-    return badge(label, status)
+def status_badge(text: str, status: str = "success") -> str:
+    variant = {
+        "success": "cp-badge-success",
+        "configured": "cp-badge-success",
+        "healthy": "cp-badge-success",
+        "approved": "cp-badge-success",
+        "published": "cp-badge-success",
+        "warning": "cp-badge-warning",
+        "pending": "cp-badge-warning",
+        "missing": "cp-badge-warning",
+        "danger": "cp-badge-danger",
+        "error": "cp-badge-danger",
+        "rejected": "cp-badge-danger",
+        "info": "cp-badge-info",
+        "muted": "cp-badge-warning",
+    }.get(status.lower(), "cp-badge-warning")
+    return f'<span class="cp-badge {variant}">{esc(text)}</span>'
 
 
-def render_provider_card(name: str, configured: bool, description: str | None = None) -> None:
-    st.markdown(provider_card(name, configured, description or ""), unsafe_allow_html=True)
+def badge_html(text: str, status: str = "success") -> str:
+    return status_badge(text, status)
 
 
-def render_health_card(name: str, status: str, message: str) -> None:
-    st.markdown(health_card(name, status, message), unsafe_allow_html=True)
-
-
-def render_info_card(title: str, body: str, icon: str | None = None) -> None:
-    icon_html = f'<div class="cp-metric-icon"><i class="bi {icon or "bi-info-circle"}"></i></div>' if icon else ""
+def status_card(title: str, message: str, status: str = "success") -> None:
+    badge = status_badge(status.title(), status)
     st.markdown(
-        f'<div class="card border rounded-4 shadow-sm p-3 mb-2">{icon_html}'
-        f'<div class="fw-semibold">{_esc(title)}</div>'
-        f'<p class="cp-card-subtitle mb-0">{_esc(body)}</p></div>',
+        f"""
+    <div class="cp-status-card">
+      <div class="d-flex justify-content-between align-items-start gap-3">
+        <div>
+          <div class="cp-status-title">{esc(title)}</div>
+          <div class="cp-status-text">{esc(message)}</div>
+        </div>
+        {badge}
+      </div>
+    </div>
+    """,
         unsafe_allow_html=True,
     )
 
 
-def render_connector_status(name: str, configured: bool, detail: str = "") -> None:
-    render_provider_card(name, configured, detail or None)
-
-
-def render_empty_state(
-    title: str,
-    subtitle: str = "",
-    prompt_placeholder: str | None = None,
-    *,
-    description: str | None = None,
-    icon: str = "A",
-) -> None:
-    desc = subtitle or description or ""
+def info_card(title: str, body: str) -> None:
     st.markdown(
-        f'<div class="cp-welcome-hero text-center">'
-        f'<div class="cp-logo-mark">{_esc(icon)}</div>'
-        f'<div class="cp-welcome-title">{_esc(title)}</div>'
-        f'<div class="cp-welcome-sub">{_esc(desc)}</div></div>',
+        f"""
+    <div class="cp-card">
+      <h5>{esc(title)}</h5>
+      <p class="mb-0 text-muted">{esc(body)}</p>
+    </div>
+    """,
         unsafe_allow_html=True,
     )
-    if prompt_placeholder:
-        st.caption(prompt_placeholder)
 
 
-def render_template_card(title: str, description: str = "", icon: str | None = None) -> None:
-    st.markdown(template_card(title, description), unsafe_allow_html=True)
-
-
-def render_upgrade_card() -> str:
-    from ui.bootstrap_components import premium_card
-    return premium_card()
+def alert_card(message: str, kind: str = "info") -> None:
+    kind_map = {"error": "error", "warning": "warning", "info": "info", "success": "success"}
+    cls = f"cp-alert cp-alert-{kind_map.get(kind, 'info')}"
+    st.markdown(
+        f'<div class="{cls}" role="alert">{esc(message)}</div>',
+        unsafe_allow_html=True,
+    )
 
 
 def render_alert(message: str, kind: str = "info") -> None:
-    st.markdown(alert_html(message, kind), unsafe_allow_html=True)
-
-
-def render_platform_badge(platform: str) -> str:
-    return platform_badge(platform)
-
-
-def render_chat_message(
-    role: str,
-    content: str,
-    provider: str = "",
-    show_actions: bool = False,
-) -> None:
-    st.markdown(chat_message_html(role, content, provider, show_actions), unsafe_allow_html=True)
-
-
-def render_date_divider(label: str = "TODAY") -> None:
-    st.markdown(date_divider(label), unsafe_allow_html=True)
-
-
-def render_table_as_cards(rows: list[dict[str, Any]], columns: list[tuple[str, str]]) -> None:
-    if not rows:
-        st.markdown(
-            f'<p style="color:{TEXT_MUTED};font-size:0.875rem;">No data to display.</p>',
-            unsafe_allow_html=True,
-        )
-        return
-    for row in rows:
-        cells = "".join(
-            f'<div class="d-flex justify-content-between py-1 border-bottom">'
-            f'<span class="text-muted small">{_esc(label)}</span>'
-            f'<span class="small fw-medium">{_esc(str(row.get(key, "-")))}</span></div>'
-            for key, label in columns
-        )
-        st.markdown(f'<div class="card border rounded-3 shadow-sm mb-2 p-3">{cells}</div>', unsafe_allow_html=True)
-
-
-def render_data_table_or_cards(
-    rows: list[dict[str, Any]],
-    columns: list[tuple[str, str]],
-    use_dataframe: bool = True,
-) -> None:
-    if not rows:
-        st.markdown(
-            f'<p style="color:{TEXT_MUTED};font-size:0.875rem;">No data to display.</p>',
-            unsafe_allow_html=True,
-        )
-        return
-    if use_dataframe:
-        import pandas as pd
-
-        df = pd.DataFrame([{label: row.get(key, "-") for key, label in columns} for row in rows])
-        st.dataframe(df, use_container_width=True, hide_index=True)
+    if kind == "error":
+        st.error(message)
+    elif kind == "warning":
+        st.warning(message)
+    elif kind == "success":
+        st.success(message)
     else:
-        render_table_as_cards(rows, columns)
+        st.info(message)
 
 
-def render_two_column_layout(left_ratio: float = 0.65):
-    return st.columns([left_ratio, 1 - left_ratio])
+def welcome_card() -> None:
+    st.markdown(
+        """
+    <div class="cp-welcome-card">
+      <div class="cp-logo-mark">A</div>
+      <h2 style="font-weight:800;margin-bottom:10px;">Welcome to Artixcore ContentPilot</h2>
+      <p class="text-muted mb-1">Your AI content, chatbot, and publishing command center.</p>
+      <p class="text-muted mb-0">Generate, approve, publish, and learn from every conversation.</p>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
 
-def render_welcome_hero() -> None:
-    st.markdown(welcome_hero(), unsafe_allow_html=True)
+def template_card(title: str, description: str = "") -> None:
+    st.markdown(
+        f"""
+    <div class="cp-template-card">
+      <div class="d-flex gap-3">
+        <span style="font-size:1.4rem;">⚡</span>
+        <div>
+          <div class="fw-semibold">{esc(title)}</div>
+          <p class="text-muted mb-0" style="font-size:0.9rem;">{esc(description)}</p>
+        </div>
+      </div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
 
-def render_queue_card(
-    title: str,
-    badges: str,
-    preview: str,
-    meta: str,
-) -> None:
-    st.markdown(queue_card(title, badges, preview, meta), unsafe_allow_html=True)
+def platform_badge(platform: str) -> str:
+    colors = {
+        "linkedin": "#0A66C2",
+        "facebook": "#1877F2",
+        "instagram": "#E4405F",
+        "twitter": "#000000",
+        "website_blog": "#D97706",
+        "telegram": "#0088CC",
+    }
+    color = colors.get(platform.lower(), "#6B7280")
+    plat_label = platform.replace("_", " ").title()
+    return (
+        f'<span class="cp-platform-badge" style="background:{color}15;color:{color};'
+        f'border:1px solid {color}30;">{esc(plat_label)}</span>'
+    )
 
 
-def primary_button(label: str, key: str, disabled: bool = False) -> bool:
-    return st.button(label, key=key, type="primary", disabled=disabled, use_container_width=True)
+def queue_card(title: str, badges_html: str, preview: str, meta: str) -> None:
+    preview_text = esc(preview[:200]) + ("..." if len(preview) > 200 else "")
+    st.markdown(
+        f"""
+    <div class="cp-card" style="margin-bottom:12px;">
+      <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+        <span class="fw-semibold">{esc(title)}</span>
+        <span>{badges_html}</span>
+      </div>
+      <p class="text-muted mb-2" style="font-size:0.9rem;">{preview_text}</p>
+      <div style="font-size:0.82rem;color:{TEXT_SECONDARY};">{esc(meta)}</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
 
 
-def secondary_button(label: str, key: str) -> bool:
-    return st.button(label, key=key, use_container_width=True)
+def chat_message(role: str, content: str, provider: str = "") -> None:
+    body = esc(content).replace("\n", "<br>")
+    if role == "user":
+        st.markdown(
+            f'<div class="cp-message user"><div class="cp-message-body">{body}</div></div>',
+            unsafe_allow_html=True,
+        )
+        return
+    meta = f'<div style="font-size:0.75rem;color:#9ca3af;margin-top:8px;">Model: {esc(provider)}</div>' if provider else ""
+    st.markdown(
+        f"""
+    <div class="cp-message ai">
+      <div class="cp-logo-mark cp-message-avatar">A</div>
+      <div class="cp-message-body">{body}{meta}</div>
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+
+def date_divider(label: str = "TODAY") -> None:
+    st.markdown(f'<div class="cp-date-divider">{esc(label)}</div>', unsafe_allow_html=True)
+
+
+def inbox_item(name: str, preview: str, status: str, platform: str, active: bool = False) -> None:
+    item_cls = "cp-inbox-item active" if active else "cp-inbox-item"
+    st.markdown(
+        f"""
+    <div class="{item_cls}">
+      <div class="d-flex justify-content-between align-items-start gap-2 mb-1">
+        <strong>{esc(name)}</strong>
+        {status_badge(status, "info")}
+      </div>
+      <div class="text-muted" style="font-size:0.82rem;margin-bottom:6px;">{esc(preview[:60])}</div>
+      {platform_badge(platform)}
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+
+def connector_row(name: str, configured: bool, detail: str = "") -> None:
+    desc = f'<p class="cp-status-text mb-0 mt-2">{esc(detail)}</p>' if detail else ""
+    st.markdown(
+        f"""
+    <div class="cp-status-card" style="margin-bottom:10px;min-height:auto;">
+      <div class="d-flex justify-content-between align-items-start gap-2">
+        <span class="cp-status-title">{esc(name)}</span>
+        {status_badge("Configured" if configured else "Missing", "success" if configured else "warning")}
+      </div>
+      {desc}
+    </div>
+    """,
+        unsafe_allow_html=True,
+    )
+
+
+# Backward-compatible aliases
+render_page_header = page_header
+render_section_title = section_title
+render_metric_card = metric_card
+render_status_badge = status_badge
+render_provider_card = lambda name, configured, description="": status_card(
+    name, description or ("Configured." if configured else "Not configured."), "success" if configured else "warning"
+)
+render_health_card = status_card
+render_info_card = info_card
+render_alert_card = alert_card
+render_welcome_hero = welcome_card
+render_template_card = template_card
+render_chat_message = chat_message
+render_date_divider = date_divider
+render_queue_card = queue_card

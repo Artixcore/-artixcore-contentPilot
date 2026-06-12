@@ -11,26 +11,12 @@ from core.models import CHAT_PLATFORMS
 from core.publishing import get_publisher_statuses
 from core.router import ProviderRouter
 from core.utils import mask_secret
-from ui.bootstrap_components import badge, section_title, widget_section_header
+from ui.components import connector_row, page_header, section_title
 from ui.navigation import navigate
 
 
-def _status_card(name: str, configured: bool, detail: str = "") -> str:
-    desc = f'<p class="cp-card-subtitle mb-0 mt-2">{detail}</p>' if detail else ""
-    return (
-        f'<div class="card border rounded-3 shadow-sm mb-2 p-3">'
-        f'<div class="d-flex justify-content-between align-items-start gap-2">'
-        f'<span class="fw-semibold">{name}</span>'
-        f'{badge("Configured" if configured else "Not Configured", "success" if configured else "warning")}'
-        f"</div>{desc}</div>"
-    )
-
-
 def render(session: Session) -> None:
-    st.markdown(
-        widget_section_header("Integrations", "Provider, publishing, and chat connector status at a glance."),
-        unsafe_allow_html=True,
-    )
+    page_header("Integrations", "Provider, publishing, and chat connector status at a glance.")
 
     router = ProviderRouter(session=session)
     availability = router.get_availability_status()
@@ -38,14 +24,11 @@ def render(session: Session) -> None:
     channels = get_channel_statuses()
     tg_status = get_telegram_status()
 
-    st.markdown(section_title("AI Providers"), unsafe_allow_html=True)
-    st.markdown(
-        _status_card("OpenAI", bool(availability.get("openai")), f"Key: {mask_secret(os.getenv('OPENAI_API_KEY', ''))}")
-        + _status_card("Anthropic", bool(availability.get("anthropic")), f"Key: {mask_secret(os.getenv('ANTHROPIC_API_KEY', ''))}"),
-        unsafe_allow_html=True,
-    )
+    section_title("AI Providers")
+    connector_row("OpenAI", bool(availability.get("openai")), f"Key: {mask_secret(os.getenv('OPENAI_API_KEY', ''))}")
+    connector_row("Anthropic", bool(availability.get("anthropic")), f"Key: {mask_secret(os.getenv('ANTHROPIC_API_KEY', ''))}")
 
-    st.markdown(section_title("Publishing Connectors"), unsafe_allow_html=True)
+    section_title("Publishing Connectors")
     pub_labels = {
         "linkedin": "LinkedIn",
         "twitter": "X / Twitter",
@@ -53,38 +36,30 @@ def render(session: Session) -> None:
         "instagram": "Instagram",
         "website_blog": "Website API",
     }
-    st.markdown(
-        "".join(_status_card(label, pub_statuses.get(key, False)) for key, label in pub_labels.items()),
-        unsafe_allow_html=True,
-    )
+    for key, label in pub_labels.items():
+        connector_row(label, pub_statuses.get(key, False))
 
-    st.markdown(section_title("Chat Platforms"), unsafe_allow_html=True)
-    chat_cards = ""
+    section_title("Chat Platforms")
     for platform in CHAT_PLATFORMS:
         ch = channels.get(platform)
         configured = bool(ch and ch.configured)
-        detail = ch.message if ch else "Not configured"
-        chat_cards += _status_card(platform.title(), configured, detail)
-    st.markdown(chat_cards, unsafe_allow_html=True)
+        connector_row(platform.title(), configured, ch.message if ch else "Not configured")
 
-    st.markdown(
-        _status_card(
-            "Telegram Controller",
-            tg_status.get("configured", False),
-            f"Status: {'Running' if tg_status.get('running') else 'Ready' if tg_status.get('configured') else 'Off'} · "
-            f"Admins: {tg_status.get('admin_count', 0)}",
-        ),
-        unsafe_allow_html=True,
+    connector_row(
+        "Telegram Controller",
+        tg_status.get("configured", False),
+        f"Status: {'Running' if tg_status.get('running') else 'Ready' if tg_status.get('configured') else 'Off'} · "
+        f"Admins: {tg_status.get('admin_count', 0)}",
     )
 
     st.divider()
     c1, c2, c3 = st.columns(3)
     with c1:
         if st.button("Provider Settings", key="int_prov", use_container_width=True):
-            navigate("provider_settings")
+            navigate("Provider Settings")
     with c2:
         if st.button("Publishing Settings", key="int_pub", use_container_width=True):
-            navigate("publishing_settings")
+            navigate("Publishing Settings")
     with c3:
         if st.button("Chat Control", key="int_chat", use_container_width=True):
-            navigate("chat_control")
+            navigate("Chat Control")
