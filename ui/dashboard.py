@@ -1,6 +1,5 @@
 """Dashboard page."""
 
-import streamlit as st
 from sqlalchemy.orm import Session
 
 from core.cache import get_or_set
@@ -14,21 +13,31 @@ from providers import PROVIDER_UNAVAILABLE_MSG
 from ui.bootstrap_components import (
     alert_html,
     badge,
+    escape_html,
     health_card,
-    html_escape,
     page_header,
     queue_card,
     section_title,
 )
 
 
-def _build_dashboard_html(
-    stats: dict,
-    availability: dict,
-    health_checks: list,
-    pub_statuses: dict,
-    pending_posts: list,
-) -> str:
+def render_html(session: Session) -> str:
+    def _dashboard_stats():
+        return {
+            "total": session.query(Post).count(),
+            "pending": session.query(Post).filter(Post.status == "pending_approval").count(),
+            "published": session.query(Post).filter(Post.status == "published").count(),
+            "chat_convos": count_open_conversations(session),
+            "training_stats": get_training_stats(session),
+        }
+
+    stats = get_or_set("dashboard_stats", _dashboard_stats)
+    router = ProviderRouter(session=session)
+    availability = get_or_set("provider_status", lambda: router.get_availability_status())
+    health_checks = format_health_for_display()
+    pub_statuses = get_or_set("connector_status", get_publisher_statuses)
+    pending_posts = session.query(Post).filter(Post.status == "pending_approval").limit(5).all()
+
     total = stats["total"]
     pending = stats["pending"]
     published = stats["published"]
@@ -134,7 +143,7 @@ def _build_dashboard_html(
         f'<div class="col-12 col-md-6 col-lg-4">'
         f'<div class="card cp-status-card border rounded-4 shadow-sm h-100"><div class="card-body">'
         f'<div class="d-flex justify-content-between align-items-start gap-2">'
-        f'<span class="fw-semibold">{html_escape(label)}</span>'
+        f'<span class="fw-semibold">{escape_html(label)}</span>'
         f'{badge("Configured" if pub_statuses.get(key, False) else "Missing", "success" if pub_statuses.get(key, False) else "warning")}'
         f"</div></div></div></div>"
         for key, label in pub_labels.items()
@@ -152,6 +161,43 @@ def _build_dashboard_html(
             )
         pending_html = section_title("Pending Tasks") + cards
 
+    posts = session.query(Post).order_by(Post.created_at.desc()).limit(20).all()
+    if posts:
+        rows = "".join(
+            f"<tr>"
+            f"<td>{escape_html(str(p.id))}</td>"
+            f"<td>{escape_html(p.platform)}</td>"
+            f"<td>{escape_html(p.topic[:50])}</td>"
+            f"<td>{escape_html(p.status)}</td>"
+            f"<td>{escape_html(p.provider_used or '-')}</td>"
+            f"<td>{escape_html(p.created_at.strftime('%Y-%m-%d %H:%M') if p.created_at else '')}</td>"
+            f"</tr>"
+            for p in posts
+        )
+        activity_html = f"""
+        {section_title("Recent Activity")}
+        <div class="table-responsive">
+          <table class="table table-hover align-middle bg-white rounded-4 overflow-hidden">
+            <thead class="table-light">
+              <tr>
+                <th>ID</th>
+                <th>Platform</th>
+                <th>Topic</th>
+                <th>Status</th>
+                <th>Provider</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody>{rows}</tbody>
+          </table>
+        </div>
+        """
+    else:
+        activity_html = (
+            section_title("Recent Activity")
+            + '<p class="text-muted">No posts yet. Create your first post from Create Post or AI Workspace.</p>'
+        )
+
     return f"""
     <div class="cp-dashboard-content">
       {page_header("Dashboard", "Overview of your content pipeline, chatbot activity, publishing connectors, and system health.")}
@@ -165,66 +211,11 @@ def _build_dashboard_html(
       {section_title("Connector Health")}
       <div class="row g-4">{connector_cards}</div>
       {pending_html}
+      {activity_html}
     </div>
-    """
+  """
 
 
 def render(session: Session) -> None:
-    def _dashboard_stats():
-        return {
-            "total": session.query(Post).count(),
-            "pending": session.query(Post).filter(Post.status == "pending_approval").count(),
-            "published": session.query(Post).filter(Post.status == "published").count(),
-            "chat_convos": count_open_conversations(session),
-            "training_stats": get_training_stats(session),
-        }
-
-    stats = get_or_set("dashboard_stats", _dashboard_stats)
-    router = ProviderRouter(session=session)
-    availability = get_or_set("provider_status", lambda: router.get_availability_status())
-    health_checks = format_health_for_display()
-    pub_statuses = get_or_set("connector_status", get_publisher_statuses)
-    pending_posts = session.query(Post).filter(Post.status == "pending_approval").limit(5).all()
-
-    st.markdown(_build_dashboard_html(stats, availability, health_checks, pub_statuses, pending_posts), unsafe_allow_html=True)
-
-    st.markdown(section_title("Recent Activity"), unsafe_allow_html=True)
-
-    posts = session.query(Post).order_by(Post.created_at.desc()).limit(20).all()
-    if posts:
-        rows = [
-            {
-                "id": p.id,
-                "platform": p.platform,
-                "topic": p.topic[:50],
-                "status": p.status,
-                "provider": p.provider_used or "-",
-                "created": p.created_at.strftime("%Y-%m-%d %H:%M") if p.created_at else "",
-            }
-            for p in posts
-        ]
-        card_view = st.toggle("Card view (mobile-friendly)", value=False, key="dash_card_view")
-        if card_view:
-            for row in rows:
-                cells = "".join(
-                    f'<div class="d-flex justify-content-between py-1 border-bottom">'
-                    f'<span class="text-muted small">{html_escape(lbl)}</span>'
-                    f'<span class="small fw-medium">{html_escape(str(row.get(k, "-")))}</span></div>'
-                    for k, lbl in [
-                        ("id", "ID"), ("platform", "Platform"), ("topic", "Topic"),
-                        ("status", "Status"), ("provider", "Provider"), ("created", "Created"),
-                    ]
-                )
-                st.markdown(
-                    f'<div class="card border rounded-3 shadow-sm mb-2 p-3">{cells}</div>',
-                    unsafe_allow_html=True,
-                )
-        else:
-            import pandas as pd
-            df = pd.DataFrame([{
-                "ID": r["id"], "Platform": r["platform"], "Topic": r["topic"],
-                "Status": r["status"], "Provider": r["provider"], "Created": r["created"],
-            } for r in rows])
-            st.dataframe(df, use_container_width=True, hide_index=True)
-    else:
-        st.info("No posts yet. Create your first post from Create Post or AI Workspace.")
+    """Backward-compatible alias — layout calls render_html directly."""
+    pass

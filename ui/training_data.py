@@ -11,15 +11,10 @@ from core.training_data import (
     update_training_feedback,
 )
 from core.utils import format_user_error
-from ui.bootstrap_components import badge, metric_card, section_title, widget_section_header
+from ui.bootstrap_components import badge, metric_card, section_title
 
 
 def render(session: Session) -> None:
-    st.markdown(
-        widget_section_header("Training Data", "Manage training examples for fine-tuning, RAG, and brand learning."),
-        unsafe_allow_html=True,
-    )
-
     stats = get_training_stats(session)
     metrics = (
         '<div class="row g-4 mb-3">'

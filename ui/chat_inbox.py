@@ -25,16 +25,10 @@ from ui.bootstrap_components import (
     chat_message_html,
     platform_badge,
     section_title,
-    widget_section_header,
 )
 
 
 def render(session: Session) -> None:
-    st.markdown(
-        widget_section_header("Chat Inbox", "Review conversations, approve AI replies, and simulate incoming messages."),
-        unsafe_allow_html=True,
-    )
-
     router = ProviderRouter(session=session)
     if not router.has_any_provider():
         st.markdown(alert_html(CHATBOT_PROVIDER_UNAVAILABLE_MSG, "error"), unsafe_allow_html=True)

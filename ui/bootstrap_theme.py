@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 _ASSETS_ROOT = Path(__file__).resolve().parent.parent / "assets"
 
@@ -14,59 +15,40 @@ BOOTSTRAP_CDN = """
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 """
 
-STREAMLIT_RESET_CSS = """
-[data-testid="stSidebar"] {
-  display: none !important;
-}
-
-[data-testid="collapsedControl"] {
-  display: none !important;
-}
-
-[data-testid="stHeader"] {
-  display: none !important;
-}
-
-#MainMenu, footer {
-  visibility: hidden !important;
-}
-
-.block-container {
-  max-width: 100% !important;
-  padding: 0 !important;
-}
-
-[data-testid="stAppViewContainer"] {
-  background: radial-gradient(circle at center, #f5bc6b 0%, #d99043 46%, #c9792b 100%) !important;
-}
-
-.stApp {
-  background: transparent !important;
-}
-"""
-
 
 def _read_asset(relative: str) -> str:
-    return (_ASSETS_ROOT / relative).read_text(encoding="utf-8")
+    path = _ASSETS_ROOT / relative
+    if path.exists():
+        return path.read_text(encoding="utf-8")
+    return ""
 
 
-def inject_bootstrap_theme() -> None:
-    """Inject Bootstrap CDN, custom CSS, and app JS once per run."""
-    app_css = _read_asset("styles/app.css")
-    app_js = _read_asset("js/app.js")
-    payload = (
-        BOOTSTRAP_CDN
-        + f"<style>{STREAMLIT_RESET_CSS}\n{app_css}</style>"
-        + f"<script>{app_js}</script>"
-    )
-    st.markdown(payload, unsafe_allow_html=True)
+def load_bootstrap() -> None:
+    """Inject Bootstrap 5 CDN CSS, Icons, and JS bundle."""
+    st.markdown(BOOTSTRAP_CDN, unsafe_allow_html=True)
 
 
 def load_css() -> None:
-    """Backward-compatible alias."""
-    inject_bootstrap_theme()
+    """Load local app stylesheet."""
+    css_path = _ASSETS_ROOT / "styles" / "app.css"
+    if css_path.exists():
+        st.markdown(f"<style>{css_path.read_text(encoding='utf-8')}</style>", unsafe_allow_html=True)
 
 
 def load_js() -> None:
-    """JS is bundled inside inject_bootstrap_theme()."""
-    return
+    """Load local app JavaScript via components.html (not st.markdown)."""
+    js_path = _ASSETS_ROOT / "js" / "app.js"
+    if js_path.exists():
+        components.html(f"<script>{js_path.read_text(encoding='utf-8')}</script>", height=0)
+
+
+def init_theme() -> None:
+    """Inject Bootstrap CDN, custom CSS, and app JS once per run."""
+    load_bootstrap()
+    load_css()
+    load_js()
+
+
+def inject_bootstrap_theme() -> None:
+    """Backward-compatible alias for init_theme()."""
+    init_theme()

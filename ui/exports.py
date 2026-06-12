@@ -14,7 +14,7 @@ from core.exports import (
 from core.models import PLATFORMS
 from core.chat_database import export_chatbot_training_jsonl, export_combined_training_jsonl
 from core.training_data import export_training_data_csv, export_training_data_jsonl
-from ui.bootstrap_components import section_title, widget_section_header
+from ui.bootstrap_components import section_title
 
 EXPORT_TYPES = [
     "Posts — CSV",
@@ -30,11 +30,6 @@ EXPORT_TYPES = [
 
 
 def render(session: Session) -> None:
-    st.markdown(
-        widget_section_header("Exports", "Download posts, training data, and activity logs."),
-        unsafe_allow_html=True,
-    )
-
     from core.errors import ExportError
     from ui.loading import loading_spinner
     from ui.notifications import show_error_from_dict

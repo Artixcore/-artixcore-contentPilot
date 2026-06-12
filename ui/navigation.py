@@ -14,12 +14,10 @@ NAV_OPTIONS: list[tuple[str, str]] = [
     ("Chat Inbox", "chat_inbox"),
     ("Chat Control", "chat_control"),
     ("Publish Center", "publish_center"),
-    ("Campaigns", "campaigns"),
     ("Training Data", "training_data"),
     ("Provider Settings", "provider_settings"),
     ("Publishing Settings", "publishing_settings"),
     ("Brand Settings", "brand_settings"),
-    ("Integrations", "integrations"),
     ("Exports", "exports"),
 ]
 
@@ -39,15 +37,27 @@ PAGE_LABELS: dict[str, str] = {
     "create_post": "Create Post",
     "chat_inbox": "Chat Inbox",
     "publish_center": "Publish Center",
-    "campaigns": "Campaigns",
     "approvals": "Approvals",
     "chat_control": "Chat Control",
     "training_data": "Training Data",
-    "integrations": "Integrations",
     "brand_settings": "Brand Settings",
     "provider_settings": "Provider Settings",
     "publishing_settings": "Publishing Settings",
     "exports": "Exports",
+}
+
+PAGE_SUBTITLES: dict[str, str] = {
+    "ai_workspace": "Your AI content, chatbot, and publishing command center.",
+    "create_post": "Generate AI-powered content for your selected platform.",
+    "approvals": "Review, edit, approve, or reject pending content. No auto-publishing.",
+    "chat_inbox": "Review conversations, approve AI replies, and simulate incoming messages.",
+    "chat_control": "Configure and monitor the Artixcore AI chatbot.",
+    "publish_center": "Publish approved or scheduled posts. Human confirmation required.",
+    "training_data": "Manage training examples for fine-tuning, RAG, and brand learning.",
+    "provider_settings": "AI provider status and configuration.",
+    "publishing_settings": "Social platform connector status. Tokens loaded from `.env`.",
+    "brand_settings": "Configure the Artixcore brand profile used for content generation.",
+    "exports": "Download posts, training data, and activity logs.",
 }
 
 

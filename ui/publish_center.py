@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from core.models import PLATFORMS
 from core.publishing import PublishError, get_publishable_posts, get_publisher_statuses, mark_as_manually_posted, publish_post
 from core.utils import format_user_error
-from ui.bootstrap_components import badge, platform_badge, section_title, widget_section_header
+from ui.bootstrap_components import badge, platform_badge, section_title
 
 PLATFORM_LABELS = {
     "facebook": "Facebook",
@@ -26,11 +26,6 @@ def _connector_html(label: str, configured: bool) -> str:
 
 
 def render(session: Session) -> None:
-    st.markdown(
-        widget_section_header("Publish Center", "Publish approved or scheduled posts. Human confirmation required."),
-        unsafe_allow_html=True,
-    )
-
     pub_statuses = get_publisher_statuses()
     main_col, side_col = st.columns([0.7, 0.3])
 

@@ -9,15 +9,10 @@ from core.models import ProviderLog
 from core.router import ProviderRouter
 from core.utils import mask_secret
 from providers import PROVIDER_UNAVAILABLE_MSG
-from ui.bootstrap_components import alert_html, badge, section_title, widget_section_header
+from ui.bootstrap_components import alert_html, badge, section_title
 
 
 def render(session: Session) -> None:
-    st.markdown(
-        widget_section_header("Provider Settings", "AI provider status and configuration."),
-        unsafe_allow_html=True,
-    )
-
     router = ProviderRouter(session=session)
     availability = router.get_availability_status()
 

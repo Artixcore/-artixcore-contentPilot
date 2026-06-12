@@ -12,7 +12,6 @@ PRIMARY_NAV = [
     ("Chat Inbox", "bi-chat-dots", "chat_inbox"),
     ("Chat Control", "bi-robot", "chat_control"),
     ("Publish Center", "bi-send", "publish_center"),
-    ("Campaigns", "bi-megaphone", "campaigns"),
 ]
 
 SYSTEM_NAV = [
@@ -20,7 +19,6 @@ SYSTEM_NAV = [
     ("Provider Settings", "bi-cpu", "provider_settings"),
     ("Publishing Settings", "bi-share", "publishing_settings"),
     ("Brand Settings", "bi-palette", "brand_settings"),
-    ("Integrations", "bi-plug", "integrations"),
     ("Exports", "bi-download", "exports"),
 ]
 
@@ -37,8 +35,11 @@ ICON_RAIL = [
 WORKSPACES = ["Artixcore", "Dealzyro", "Digitalplanup", "General"]
 
 
-def html_escape(text: str | None) -> str:
+def escape_html(text: str | None) -> str:
     return html.escape(str(text or ""))
+
+
+html_escape = escape_html
 
 
 def badge(text: str, variant: str = "secondary") -> str:
@@ -144,19 +145,19 @@ def section_title(title: str) -> str:
 def topbar(current_title: str) -> str:
     return f"""
     <header class="cp-topbar">
-      <div class="cp-topbar-left">
-        <button type="button" class="btn btn-outline-secondary btn-sm cp-menu-btn" id="cp-menu-toggle" aria-label="Open menu">
+      <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm cp-mobile-menu" data-cp-mobile-menu aria-label="Open menu">
           <i class="bi bi-list"></i>
         </button>
-        <span class="cp-topbar-title">{html_escape(current_title)}</span>
+        <span class="cp-topbar-title">{escape_html(current_title)}</span>
       </div>
-      <div class="cp-topbar-right">
+      <div class="cp-topbar-actions">
         <a href="#" class="btn btn-outline-secondary btn-sm cp-topbar-btn">Upgrade Plan</a>
         <a href="#" class="btn btn-outline-secondary btn-sm cp-topbar-btn">History</a>
-        <a href="?view=chat_inbox" class="btn btn-outline-secondary btn-sm cp-topbar-icon" title="Inbox"><i class="bi bi-inbox"></i></a>
-        <a href="#" class="btn btn-outline-secondary btn-sm cp-topbar-icon" title="Share"><i class="bi bi-share"></i></a>
-        <a href="#" class="btn btn-outline-secondary btn-sm cp-topbar-icon" title="Notifications"><i class="bi bi-bell"></i></a>
-        <a href="?view=brand_settings" class="btn btn-outline-secondary btn-sm cp-topbar-icon" title="Profile"><i class="bi bi-person-circle"></i></a>
+        <a href="?view=chat_inbox" class="cp-topbar-icon" title="Inbox"><i class="bi bi-inbox"></i></a>
+        <a href="#" class="cp-topbar-icon" title="Share"><i class="bi bi-share"></i></a>
+        <a href="#" class="cp-topbar-icon" title="Notifications"><i class="bi bi-bell"></i></a>
+        <a href="?view=brand_settings" class="cp-topbar-icon" title="Profile"><i class="bi bi-person-circle"></i></a>
       </div>
     </header>
     """
@@ -208,6 +209,21 @@ def icon_rail(active_view: str, workspace: str = "Artixcore") -> str:
         <div class="cp-avatar" title="Profile">S</div>
       </div>
     </aside>
+    """
+
+
+def error_card(title: str, message: str, reason: str | None = None, action: str | None = None) -> str:
+    reason_html = f'<p class="mb-2"><strong>Reason:</strong> {escape_html(reason)}</p>' if reason else ""
+    action_html = f'<p class="mb-0 text-muted"><em>{escape_html(action)}</em></p>' if action else ""
+    return f"""
+    <div class="card cp-card border rounded-4 shadow-sm">
+      <div class="card-body">
+        <h2 class="h5 fw-bold text-danger mb-3">{escape_html(title)}</h2>
+        <p class="mb-2">{escape_html(message)}</p>
+        {reason_html}
+        {action_html}
+      </div>
+    </div>
     """
 
 

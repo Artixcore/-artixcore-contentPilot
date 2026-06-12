@@ -9,12 +9,7 @@ from core.models import PLATFORMS, Post
 from core.router import ProviderRouter
 from ui.notifications import show_error_from_dict, show_success
 from providers import PROVIDER_UNAVAILABLE_MSG
-from ui.bootstrap_components import (
-    alert_html,
-    badge,
-    section_title,
-    widget_section_header,
-)
+from ui.bootstrap_components import alert_html, badge, section_title
 
 PLATFORM_LABELS = {
     "facebook": "Facebook",
@@ -29,11 +24,6 @@ PROVIDERS = ["openai", "anthropic"]
 
 
 def render(session: Session) -> None:
-    st.markdown(
-        widget_section_header("Create Post", "Generate AI-powered content for your selected platform."),
-        unsafe_allow_html=True,
-    )
-
     router = ProviderRouter(session=session)
     if not router.has_any_provider():
         st.markdown(alert_html(PROVIDER_UNAVAILABLE_MSG, "error"), unsafe_allow_html=True)

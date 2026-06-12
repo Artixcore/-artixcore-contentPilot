@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from core.publishing import get_publisher_statuses
 from core.utils import mask_secret
-from ui.bootstrap_components import badge, section_title, widget_section_header
+from ui.bootstrap_components import badge, section_title
 
 PLATFORM_CONFIG = {
     "linkedin": {
@@ -50,11 +50,6 @@ PLATFORM_CONFIG = {
 
 
 def render(session: Session) -> None:
-    st.markdown(
-        widget_section_header("Publishing Settings", "Social platform connector status. Tokens loaded from `.env`."),
-        unsafe_allow_html=True,
-    )
-
     statuses = get_publisher_statuses()
 
     for platform_key, config in PLATFORM_CONFIG.items():

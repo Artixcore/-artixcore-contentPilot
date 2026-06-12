@@ -16,13 +16,7 @@ from core.approvals import (
     update_content,
 )
 from core.utils import format_user_error, hashtags_from_json
-from ui.bootstrap_components import (
-    badge,
-    platform_badge,
-    queue_card,
-    section_title,
-    widget_section_header,
-)
+from ui.bootstrap_components import badge, platform_badge, queue_card, section_title
 
 
 def _render_post_detail(session: Session, post) -> None:
@@ -106,11 +100,6 @@ def _render_post_detail(session: Session, post) -> None:
 
 
 def render(session: Session) -> None:
-    st.markdown(
-        widget_section_header("Approvals", "Review, edit, approve, or reject pending content. No auto-publishing."),
-        unsafe_allow_html=True,
-    )
-
     pending = get_pending_posts(session)
     if not pending:
         st.info("No posts pending approval.")

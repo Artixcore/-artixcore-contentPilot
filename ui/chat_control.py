@@ -21,7 +21,7 @@ from core.chat_database import get_blocked_keywords, get_chatbot_settings, get_d
 from core.models import CHAT_PLATFORMS
 from core.router import ProviderRouter
 from core.utils import format_user_error, mask_secret
-from ui.bootstrap_components import alert_html, badge, metric_card, section_title, widget_section_header
+from ui.bootstrap_components import alert_html, badge, metric_card, section_title
 
 
 def _connector_html(name: str, configured: bool, detail: str = "") -> str:
@@ -36,11 +36,6 @@ def _connector_html(name: str, configured: bool, detail: str = "") -> str:
 
 
 def render(session: Session) -> None:
-    st.markdown(
-        widget_section_header("Chat Control", "Configure and monitor the Artixcore AI chatbot."),
-        unsafe_allow_html=True,
-    )
-
     router = ProviderRouter(session=session)
     stats = get_dashboard_stats(session)
     settings = get_chatbot_settings(session)

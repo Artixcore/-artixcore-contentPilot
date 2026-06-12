@@ -15,9 +15,7 @@ from ui.bootstrap_components import (
     section_title,
     template_card,
     welcome_hero,
-    widget_section_header,
 )
-from ui.navigation import navigate
 
 TEMPLATES = [
     ("Create LinkedIn posts", "Create 5 LinkedIn posts for Artixcore SaaS services"),
@@ -82,7 +80,7 @@ def _handle_prompt(session: Session, prompt: str, router: ProviderRouter) -> Non
     if any(kw in lower for kw in ("plan", "campaign", "weekly", "content plan")):
         _add_message(
             "assistant",
-            "Campaign planning is available in **Campaigns**. I can also generate individual posts — "
+            "I can also generate individual posts — "
             'try asking with a specific topic and platform, e.g. "Create a LinkedIn post about SaaS MVP development".',
             "ContentPilot",
         )
@@ -120,24 +118,33 @@ def _handle_prompt(session: Session, prompt: str, router: ProviderRouter) -> Non
             _add_message("assistant", format_user_error("Generation failed. Please try again.", exc))
 
 
-def render(session: Session) -> None:
-    router = ProviderRouter(session=session)
+def render_static_html(session: Session) -> str:
     messages = st.session_state.get("chat_messages", [])
 
-    st.markdown(widget_section_header("AI Workspace", "Your AI content, chatbot, and publishing command center."), unsafe_allow_html=True)
-
     if not messages:
-        st.markdown(welcome_hero(), unsafe_allow_html=True)
+        html = welcome_hero()
     else:
-        chat_html = date_divider("TODAY")
+        html = date_divider("TODAY")
         for msg in messages:
-            chat_html += chat_message_html(
+            html += chat_message_html(
                 msg["role"] if msg["role"] == "user" else "assistant",
                 msg["content"],
                 provider=msg.get("provider", ""),
                 show_actions=msg["role"] != "user",
             )
-        st.markdown(chat_html, unsafe_allow_html=True)
+
+    if not messages:
+        html += section_title("Start with a template")
+        html += '<div class="row g-3">' + "".join(
+            template_card(title, desc) for title, desc in TEMPLATES
+        ) + "</div>"
+
+    return html
+
+
+def render_widgets(session: Session) -> None:
+    router = ProviderRouter(session=session)
+    messages = st.session_state.get("chat_messages", [])
 
     with st.container(border=True):
         prompt = st.text_area(
@@ -165,11 +172,6 @@ def render(session: Session) -> None:
             st.rerun()
 
     if not messages:
-        st.markdown(section_title("Start with a template"), unsafe_allow_html=True)
-        cards = '<div class="row g-3">' + "".join(
-            template_card(title, desc) for title, desc in TEMPLATES
-        ) + "</div>"
-        st.markdown(cards, unsafe_allow_html=True)
         tc = st.columns(2)
         for i, (_, template) in enumerate(TEMPLATES):
             with tc[i % 2]:
@@ -179,3 +181,8 @@ def render(session: Session) -> None:
 
     if not router.has_any_provider():
         st.warning(PROVIDER_UNAVAILABLE_MSG)
+
+
+def render(session: Session) -> None:
+    """Backward-compatible alias — layout calls render_static_html and render_widgets."""
+    render_widgets(session)

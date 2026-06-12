@@ -5,15 +5,10 @@ from sqlalchemy.orm import Session
 
 from core.database import get_brand_profile
 from core.schemas import BrandProfileUpdate
-from ui.bootstrap_components import section_title, widget_section_header
+from ui.bootstrap_components import section_title
 
 
 def render(session: Session) -> None:
-    st.markdown(
-        widget_section_header("Brand Settings", "Configure the Artixcore brand profile used for content generation."),
-        unsafe_allow_html=True,
-    )
-
     profile = get_brand_profile(session)
     if not profile:
         st.error("Brand profile not found. The default profile will be created on next app restart.")

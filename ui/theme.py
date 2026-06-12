@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import streamlit as st
+from ui.bootstrap_theme import init_theme, load_css, load_js
 
 # Brand tokens (used by components for inline HTML)
 PRIMARY = "#D97706"
@@ -37,18 +37,6 @@ FONT_STACK = (
 _ASSETS_ROOT = Path(__file__).resolve().parent.parent / "assets"
 
 
-def load_css() -> None:
-    """Backward-compatible alias — delegates to Bootstrap theme."""
-    from ui.bootstrap_theme import inject_bootstrap_theme
-
-    inject_bootstrap_theme()
-
-
-def load_js() -> None:
-    """JS is bundled inside inject_bootstrap_theme()."""
-    return
-
-
 def inject_theme() -> None:
-    """Backward-compatible alias for load_css()."""
-    load_css()
+    """Backward-compatible alias for init_theme()."""
+    init_theme()
