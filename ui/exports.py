@@ -54,43 +54,48 @@ def render(session: Session) -> None:
     elif export_type.startswith("Training") or export_type.startswith("Chatbot") or export_type.startswith("Combined"):
         include_rejected = st.checkbox("Include rejected examples", value=False)
 
+    from core.errors import ExportError
+    from ui.loading import loading_spinner
+    from ui.notifications import show_error_from_dict
+
     try:
-        if export_type == "Posts — CSV":
-            if not posts:
-                st.info("No posts to export.")
-                return
-            data = export_posts_csv(posts)
-            filename, mime = "contentpilot_posts.csv", "text/csv"
-        elif export_type == "Posts — JSON":
-            if not posts:
-                st.info("No posts to export.")
-                return
-            data = export_posts_json(posts)
-            filename, mime = "contentpilot_posts.json", "application/json"
-        elif export_type == "Posts — Markdown":
-            if not posts:
-                st.info("No posts to export.")
-                return
-            data = export_posts_markdown(posts)
-            filename, mime = "contentpilot_posts.md", "text/markdown"
-        elif export_type == "Training Examples — JSONL":
-            data = export_training_data_jsonl(session, include_rejected=include_rejected)
-            filename, mime = "training_data.jsonl", "application/jsonl"
-        elif export_type == "Training Examples — CSV":
-            data = export_training_data_csv(session, include_rejected=include_rejected)
-            filename, mime = "training_data.csv", "text/csv"
-        elif export_type == "Chatbot Training — JSONL":
-            data = export_chatbot_training_jsonl(session, include_rejected=include_rejected)
-            filename, mime = "training_data_chatbot.jsonl", "application/jsonl"
-        elif export_type == "Combined Training — JSONL":
-            data = export_combined_training_jsonl(session, include_rejected=include_rejected)
-            filename, mime = "training_data_combined.jsonl", "application/jsonl"
-        elif export_type == "Publishing Logs — CSV":
-            data = export_publishing_logs_csv(session)
-            filename, mime = "publishing_logs.csv", "text/csv"
-        else:
-            data = export_provider_logs_csv(session)
-            filename, mime = "provider_logs.csv", "text/csv"
+        with loading_spinner("Preparing export..."):
+            if export_type == "Posts — CSV":
+                if not posts:
+                    st.info("No posts to export.")
+                    return
+                data = export_posts_csv(posts)
+                filename, mime = "contentpilot_posts.csv", "text/csv"
+            elif export_type == "Posts — JSON":
+                if not posts:
+                    st.info("No posts to export.")
+                    return
+                data = export_posts_json(posts)
+                filename, mime = "contentpilot_posts.json", "application/json"
+            elif export_type == "Posts — Markdown":
+                if not posts:
+                    st.info("No posts to export.")
+                    return
+                data = export_posts_markdown(posts)
+                filename, mime = "contentpilot_posts.md", "text/markdown"
+            elif export_type == "Training Examples — JSONL":
+                data = export_training_data_jsonl(session, include_rejected=include_rejected)
+                filename, mime = "training_data.jsonl", "application/jsonl"
+            elif export_type == "Training Examples — CSV":
+                data = export_training_data_csv(session, include_rejected=include_rejected)
+                filename, mime = "training_data.csv", "text/csv"
+            elif export_type == "Chatbot Training — JSONL":
+                data = export_chatbot_training_jsonl(session, include_rejected=include_rejected)
+                filename, mime = "training_data_chatbot.jsonl", "application/jsonl"
+            elif export_type == "Combined Training — JSONL":
+                data = export_combined_training_jsonl(session, include_rejected=include_rejected)
+                filename, mime = "training_data_combined.jsonl", "application/jsonl"
+            elif export_type == "Publishing Logs — CSV":
+                data = export_publishing_logs_csv(session)
+                filename, mime = "publishing_logs.csv", "text/csv"
+            else:
+                data = export_provider_logs_csv(session)
+                filename, mime = "provider_logs.csv", "text/csv"
 
         st.download_button(
             label="Download",
@@ -104,9 +109,11 @@ def render(session: Session) -> None:
         with st.expander("Preview"):
             st.text(data[:5000] + ("..." if len(data) > 5000 else ""))
 
+    except ExportError as exc:
+        show_error_from_dict(exc.to_dict())
     except Exception as exc:
-        from core.utils import format_user_error
+        from core.error_handler import handle_exception
 
-        st.error(format_user_error("Export failed. Please try again.", exc))
+        show_error_from_dict(handle_exception(exc, context="export"))
 
     st.markdown("</div>", unsafe_allow_html=True)

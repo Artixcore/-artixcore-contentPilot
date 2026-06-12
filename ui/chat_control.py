@@ -24,7 +24,7 @@ from core.utils import format_user_error, mask_secret
 from ui.components import (
     render_alert,
     render_connector_status,
-    render_metrics_row,
+    render_metrics_grid,
     render_page_header,
     render_section_header,
 )
@@ -43,7 +43,7 @@ def render(session: Session) -> None:
     if not router.has_any_provider():
         render_alert(CHATBOT_PROVIDER_UNAVAILABLE_MSG, "error")
 
-    render_metrics_row([
+    render_metrics_grid([
         ("Auto Reply", "ON" if stats["auto_reply_enabled"] else "OFF", "⚡"),
         ("Approval Mode", "ON" if stats["approval_required"] else "OFF", "✓"),
         ("Human Handoff", "ON" if stats["human_handoff_enabled"] else "OFF", "👤"),

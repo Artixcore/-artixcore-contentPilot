@@ -39,7 +39,11 @@ def render(session: Session) -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
     if submitted:
-        try:
+        from core.cache import invalidate_prefix
+        from core.safe_runner import safe_streamlit_action
+        from ui.notifications import show_error_from_dict, show_success
+
+        def _save_brand():
             data = BrandProfileUpdate(
                 company_name=company_name,
                 page_name=page_name,
@@ -61,9 +65,13 @@ def render(session: Session) -> None:
             profile.preferred_cta = data.preferred_cta
             profile.forbidden_style = data.forbidden_style
             session.commit()
-            st.success("Brand profile saved successfully.")
-        except Exception as exc:
-            session.rollback()
-            from core.utils import format_user_error
+            invalidate_prefix("brand_profile")
+            invalidate_prefix("settings")
+            return True
 
-            st.error(format_user_error("Failed to save brand profile. Check your inputs.", exc))
+        outcome = safe_streamlit_action("save_settings", _save_brand)
+        if outcome.get("success"):
+            show_success("Brand profile saved successfully.")
+        else:
+            session.rollback()
+            show_error_from_dict(outcome.get("error") or {})

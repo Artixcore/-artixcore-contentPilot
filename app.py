@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from core.chat_database import seed_default_chatbot_settings
 from core.database import get_session, init_db, seed_default_brand_profile
 from ui.layout import render_app_shell
-from ui.theme import inject_theme
+from ui.theme import load_css, load_js
 
 load_dotenv()
 
@@ -16,12 +16,13 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(messag
 
 st.set_page_config(
     page_title="Artixcore ContentPilot",
-    page_icon="✈️",
+    page_icon="🟠",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-inject_theme()
+load_css()
+load_js()
 
 
 @st.cache_resource

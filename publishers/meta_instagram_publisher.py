@@ -14,6 +14,7 @@ TIMEOUT = 30.0
 
 class MetaInstagramPublisher(BasePublisher):
     name = "instagram"
+    circuit_name = "instagram"
 
     def __init__(self):
         self.graph_version = os.getenv("META_GRAPH_VERSION", "v23.0").strip()
@@ -44,62 +45,65 @@ class MetaInstagramPublisher(BasePublisher):
         base = f"https://graph.facebook.com/{self.graph_version}/{self.ig_user_id}"
         token = self.page_access_token
         try:
-            with httpx.Client(timeout=TIMEOUT) as client:
-                media_resp = client.post(
-                    f"{base}/media",
-                    data={
-                        "image_url": image_url.strip(),
-                        "caption": content.strip(),
-                        "access_token": token,
-                    },
-                )
-                media_raw = media_resp.json() if media_resp.content else {}
+            media_resp = self._safe_request(
+                "POST",
+                f"{base}/media",
+                timeout=TIMEOUT,
+                data={
+                    "image_url": image_url.strip(),
+                    "caption": content.strip(),
+                    "access_token": token,
+                },
+            )
+            media_raw = self._parse_json_response(media_resp)
 
-                if media_resp.status_code >= 400 or (isinstance(media_raw, dict) and media_raw.get("error")):
-                    error_msg = ""
-                    if isinstance(media_raw, dict) and media_raw.get("error"):
-                        error_msg = media_raw["error"].get("message", str(media_raw["error"]))
-                    return self._result(
-                        False,
-                        self.name,
-                        error=f"Instagram media creation failed: {error_msg or media_resp.text[:200]}",
-                        raw_response=media_raw if isinstance(media_raw, dict) else {},
-                    )
-
-                creation_id = str(media_raw.get("id", "")) if isinstance(media_raw, dict) else ""
-                if not creation_id:
-                    return self._result(
-                        False,
-                        self.name,
-                        error="Instagram did not return a creation ID from step 1.",
-                        raw_response=media_raw if isinstance(media_raw, dict) else {},
-                    )
-
-                publish_resp = client.post(
-                    f"{base}/media_publish",
-                    data={"creation_id": creation_id, "access_token": token},
-                )
-                publish_raw = publish_resp.json() if publish_resp.content else {}
-
-                if publish_resp.status_code >= 400 or (isinstance(publish_raw, dict) and publish_raw.get("error")):
-                    error_msg = ""
-                    if isinstance(publish_raw, dict) and publish_raw.get("error"):
-                        error_msg = publish_raw["error"].get("message", str(publish_raw["error"]))
-                    return self._result(
-                        False,
-                        self.name,
-                        error=f"Instagram publish failed: {error_msg or publish_resp.text[:200]}",
-                        raw_response={"media": media_raw, "publish": publish_raw},
-                    )
-
-                post_id = str(publish_raw.get("id", creation_id)) if isinstance(publish_raw, dict) else creation_id
+            if media_resp.status_code >= 400 or (isinstance(media_raw, dict) and media_raw.get("error")):
+                error_msg = ""
+                if isinstance(media_raw, dict) and media_raw.get("error"):
+                    error_msg = media_raw["error"].get("message", str(media_raw["error"]))
                 return self._result(
-                    True,
+                    False,
                     self.name,
-                    external_post_id=post_id,
-                    external_post_url="",
+                    error=f"Instagram media creation failed: {error_msg or media_resp.text[:200]}",
+                    raw_response=media_raw if isinstance(media_raw, dict) else {},
+                )
+
+            creation_id = str(media_raw.get("id", "")) if isinstance(media_raw, dict) else ""
+            if not creation_id:
+                return self._result(
+                    False,
+                    self.name,
+                    error="Instagram did not return a creation ID from step 1.",
+                    raw_response=media_raw if isinstance(media_raw, dict) else {},
+                )
+
+            publish_resp = self._safe_request(
+                "POST",
+                f"{base}/media_publish",
+                timeout=TIMEOUT,
+                data={"creation_id": creation_id, "access_token": token},
+            )
+            publish_raw = self._parse_json_response(publish_resp)
+
+            if publish_resp.status_code >= 400 or (isinstance(publish_raw, dict) and publish_raw.get("error")):
+                error_msg = ""
+                if isinstance(publish_raw, dict) and publish_raw.get("error"):
+                    error_msg = publish_raw["error"].get("message", str(publish_raw["error"]))
+                return self._result(
+                    False,
+                    self.name,
+                    error=f"Instagram publish failed: {error_msg or publish_resp.text[:200]}",
                     raw_response={"media": media_raw, "publish": publish_raw},
                 )
+
+            post_id = str(publish_raw.get("id", creation_id)) if isinstance(publish_raw, dict) else creation_id
+            return self._result(
+                True,
+                self.name,
+                external_post_id=post_id,
+                external_post_url="",
+                raw_response={"media": media_raw, "publish": publish_raw},
+            )
         except httpx.TimeoutException:
             return self._result(False, self.name, error="Instagram request timed out.")
         except Exception as exc:

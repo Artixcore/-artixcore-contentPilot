@@ -14,6 +14,7 @@ TIMEOUT = 30.0
 
 class LinkedInPublisher(BasePublisher):
     name = "linkedin"
+    circuit_name = "linkedin"
 
     def __init__(self):
         self.access_token = os.getenv("LINKEDIN_ACCESS_TOKEN", "").strip()
@@ -49,17 +50,14 @@ class LinkedInPublisher(BasePublisher):
             "Content-Type": "application/json",
         }
         try:
-            with httpx.Client(timeout=TIMEOUT) as client:
-                response = client.post(
-                    "https://api.linkedin.com/rest/posts",
-                    json=payload,
-                    headers=headers,
-                )
-            raw = {}
-            try:
-                raw = response.json()
-            except Exception:
-                raw = {"status_code": response.status_code, "text": response.text[:500]}
+            response = self._safe_request(
+                "POST",
+                "https://api.linkedin.com/rest/posts",
+                timeout=TIMEOUT,
+                json=payload,
+                headers=headers,
+            )
+            raw = self._parse_json_response(response)
 
             if response.status_code >= 400:
                 error_msg = raw.get("message", response.text[:200]) if isinstance(raw, dict) else response.text[:200]

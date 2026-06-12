@@ -12,7 +12,7 @@ from core.training_data import (
 )
 from core.utils import format_user_error
 from ui.components import (
-    render_metrics_row,
+    render_metrics_grid,
     render_page_header,
     render_section_header,
     render_status_badge,
@@ -23,7 +23,7 @@ def render(session: Session) -> None:
     render_page_header("Training Data", "Manage training examples for fine-tuning, RAG, and brand learning.")
 
     stats = get_training_stats(session)
-    render_metrics_row([
+    render_metrics_grid([
         ("Total Examples", stats["total"], "◎"),
         ("Approved", stats["approved"], "✓"),
         ("Published", stats["published"], "📤"),

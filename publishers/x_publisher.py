@@ -15,6 +15,7 @@ MAX_LENGTH = 280
 
 class XPublisher(BasePublisher):
     name = "twitter"
+    circuit_name = "twitter"
 
     def __init__(self):
         self.access_token = os.getenv("X_ACCESS_TOKEN", "").strip()
@@ -41,17 +42,14 @@ class XPublisher(BasePublisher):
         }
         payload = {"text": text}
         try:
-            with httpx.Client(timeout=TIMEOUT) as client:
-                response = client.post(
-                    "https://api.x.com/2/tweets",
-                    json=payload,
-                    headers=headers,
-                )
-            raw = {}
-            try:
-                raw = response.json()
-            except Exception:
-                raw = {"status_code": response.status_code, "text": response.text[:500]}
+            response = self._safe_request(
+                "POST",
+                "https://api.x.com/2/tweets",
+                timeout=TIMEOUT,
+                json=payload,
+                headers=headers,
+            )
+            raw = self._parse_json_response(response)
 
             if response.status_code >= 400:
                 error_msg = ""

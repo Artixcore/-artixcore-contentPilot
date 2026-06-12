@@ -5,15 +5,22 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
-from sqlalchemy import create_engine, select
+from sqlalchemy import create_engine, inspect, select, text
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
+from core.errors import DatabaseError
+from core.logging_config import get_logger
 from core.migrations import run_migrations
 from core.models import DEFAULT_BRAND, Base, BrandProfile
+from core.retries import retry_on_sqlite_locked
 
 load_dotenv()
 
+logger = get_logger(__name__)
+
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/contentpilot.db")
+DATABASE_TIMEOUT_SECONDS = int(os.getenv("DATABASE_TIMEOUT_SECONDS", "30"))
 
 _engine = None
 _SessionLocal = None
@@ -34,7 +41,12 @@ def get_engine():
         connect_args = {}
         if DATABASE_URL.startswith("sqlite"):
             connect_args["check_same_thread"] = False
-        _engine = create_engine(DATABASE_URL, connect_args=connect_args)
+            connect_args["timeout"] = DATABASE_TIMEOUT_SECONDS
+        _engine = create_engine(
+            DATABASE_URL,
+            connect_args=connect_args,
+            pool_pre_ping=True,
+        )
     return _engine
 
 
@@ -62,9 +74,23 @@ def session_scope():
         session.close()
 
 
+@retry_on_sqlite_locked()
 def init_db() -> None:
-    engine = get_engine()
-    run_migrations(engine)
+    """Initialize database with migrations."""
+    try:
+        engine = get_engine()
+        run_migrations(engine)
+        logger.info("Database initialized successfully")
+    except DatabaseError:
+        raise
+    except Exception as exc:
+        logger.error("Database initialization failed: %s", type(exc).__name__)
+        raise DatabaseError(
+            "Database is currently unavailable.",
+            reason=str(exc),
+            user_action="Please check local database file permissions or restart the app.",
+            original_exception=exc,
+        ) from exc
 
 
 def reset_engine(database_url: str | None = None) -> None:
@@ -78,6 +104,29 @@ def reset_engine(database_url: str | None = None) -> None:
         db_module.DATABASE_URL = database_url
 
 
+def check_database_health() -> dict:
+    """Check database reachability and schema."""
+    try:
+        engine = get_engine()
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        inspector = inspect(engine)
+        tables = set(inspector.get_table_names())
+        required = set(Base.metadata.tables.keys())
+        missing = required - tables
+        if missing:
+            return {
+                "healthy": False,
+                "message": f"Missing tables: {', '.join(sorted(missing))}",
+            }
+        return {"healthy": True, "message": "Database is reachable and schema is valid."}
+    except OperationalError as exc:
+        return {"healthy": False, "message": f"Database locked or unavailable: {type(exc).__name__}"}
+    except Exception as exc:
+        return {"healthy": False, "message": f"Database check failed: {type(exc).__name__}"}
+
+
+@retry_on_sqlite_locked()
 def seed_default_brand_profile(session: Session | None = None) -> BrandProfile | None:
     own_session = session is None
     if own_session:

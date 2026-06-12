@@ -298,6 +298,95 @@ Rejected examples are excluded by default.
 - Chatbot replies require safety pass before auto-send
 - System prompts are never exposed to end users
 
+## Reliability & Error Handling
+
+ContentPilot includes a production-grade reliability layer to prevent crashes from normal runtime errors.
+
+### Global Error Handling
+
+- Custom `AppError` hierarchy in `core/errors.py` with `message`, `reason`, `user_action`, and `error_code`
+- `core/error_handler.py` formats user-facing errors and logs sanitized details
+- Stack traces shown only when `APP_ENV=development` (or `APP_DEBUG=true`)
+- Secrets (API keys, tokens, Authorization headers) are redacted from logs and UI
+
+### Logging
+
+- Rotating log file: `logs/contentpilot.log` (5MB, 5 backups)
+- Configure level with `LOG_LEVEL=INFO`
+- Important events logged: startup, migrations, AI generation, publishing, exports, Telegram commands, rate limits, circuit breaker state
+
+### Loading States
+
+- `ui/loading.py` provides spinners, skeletons, and progress steps
+- Long operations (AI generation, publishing, exports, database queries) show loading feedback
+
+### Provider & Connector Failure Handling
+
+- OpenAI/Anthropic: timeouts, retries, rate limits, circuit breaker, structured errors
+- Social publishers: timeout, retry on 5xx, circuit breaker per platform
+- Missing API keys show clear configuration guidance instead of crashing
+
+### Database Safety
+
+- Safe session handling with rollback on errors
+- SQLite lock retries
+- Idempotent migrations
+- Database unavailable page on startup failure
+
+### Rate Limiting
+
+Configurable per-minute limits via `.env`:
+
+| Action | Default |
+|--------|---------|
+| AI generation | 20/min |
+| Chatbot replies | 30/min |
+| Publishing | 10/min |
+| Exports | 5/min |
+| Telegram commands | 30/min |
+
+### Circuit Breaker
+
+After repeated external API failures, connectors pause temporarily with a user-friendly message. Configure with `CIRCUIT_BREAKER_FAILURE_THRESHOLD` and `CIRCUIT_BREAKER_COOLDOWN_SECONDS`.
+
+### Load Handling
+
+Concurrency limits for AI, publishing, and exports via `MAX_CONCURRENT_*` env vars. Overload returns: *"ContentPilot is handling many tasks right now."*
+
+### Health Checks
+
+Dashboard **System Health** section shows status for database, providers, connectors, logs, and data directory.
+
+### Troubleshooting
+
+| Issue | What to do |
+|-------|------------|
+| Missing OpenAI/Anthropic key | Add keys in `.env` → Provider Settings |
+| Database locked | Wait and retry; avoid concurrent writes |
+| LinkedIn permission denied | Check token scopes and author URN |
+| X content too long | Keep posts under 280 characters |
+| Facebook token expired | Refresh `META_PAGE_ACCESS_TOKEN` |
+| Instagram image URL invalid | Use a public HTTPS image URL |
+| Telegram unauthorized user | Add user ID to `TELEGRAM_ADMIN_IDS` |
+| Export permission denied | Check disk permissions and path |
+| App under heavy load | Wait briefly; reduce concurrent actions |
+
+### How to Read Logs
+
+```bash
+tail -f logs/contentpilot.log
+```
+
+Look for `ERROR` lines with `error_code` and sanitized context. Never paste raw tokens from logs.
+
+### Load Test
+
+```bash
+python scripts/load_test.py
+```
+
+Set `ENABLE_REAL_API_LOAD_TEST=true` only if you intend to hit paid APIs.
+
 ## Current Limitations
 
 - **No OAuth** — Tokens configured manually through `.env`
@@ -311,6 +400,7 @@ Rejected examples are excluded by default.
 - **Single brand profile** — Multi-brand support planned
 - **No image generation** — Image prompts are text only
 - **Chatbot auto-reply off by default** — Approval required unless explicitly changed
+- **In-memory rate limits/circuit breaker** — Resets on app restart; use Redis for multi-instance production
 
 ## Future Roadmap
 
@@ -331,7 +421,8 @@ Rejected examples are excluded by default.
 artixcore-contentpilot/
 ├── app.py
 ├── chatbot/        # Chatbot agent, connectors, Telegram controller
-├── core/           # Agent, router, database, publishing, training data, chat DB
+├── core/           # Agent, router, database, reliability layer, publishing, training data
+├── scripts/        # load_test.py stress test
 ├── providers/      # OpenAI, Anthropic
 ├── publishers/     # LinkedIn, X, Facebook, Instagram, Website
 ├── prompts/        # Brand voice and generation prompts

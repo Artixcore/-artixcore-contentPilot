@@ -66,6 +66,32 @@ async def _reject_unauthorized(update: Any, context: Any) -> bool:
     return True
 
 
+def _wrap_telegram_handler(handler):
+    """Wrap Telegram command with rate limiting and error safety."""
+
+    async def wrapped(update: Any, context: Any) -> None:
+        from core.errors import RateLimitError
+        from core.rate_limiter import check_rate_limit
+
+        try:
+            user_id = str(update.effective_user.id) if update.effective_user else "unknown"
+            check_rate_limit("telegram_command", key=user_id)
+            await handler(update, context)
+        except RateLimitError:
+            if update.message:
+                await update.message.reply_text(
+                    "Too many requests. Please wait a moment and try again."
+                )
+        except Exception as exc:
+            logger.warning("Telegram command failed: %s", type(exc).__name__)
+            if update.message:
+                await update.message.reply_text(
+                    "Command failed. Please check configuration and try again."
+                )
+
+    return wrapped
+
+
 def _build_handlers():
     from telegram.ext import Application, CommandHandler, ContextTypes
 
@@ -304,7 +330,7 @@ def _build_handlers():
         with session_scope() as session:
             _log_cmd(session, update.effective_user.id, "/help", result="ok")
 
-    return [
+    raw_handlers = [
         ("/start", start_cmd),
         ("/status", status_cmd),
         ("/pause", pause_cmd),
@@ -322,6 +348,7 @@ def _build_handlers():
         ("/language", language_cmd),
         ("/help", help_cmd),
     ]
+    return [(cmd, _wrap_telegram_handler(handler)) for cmd, handler in raw_handlers]
 
 
 def start_telegram_polling() -> None:

@@ -6,9 +6,44 @@ from io import StringIO
 import pandas as pd
 from sqlalchemy.orm import Session
 
+from core.errors import ExportError
+from core.load_manager import with_load_slot
+from core.logging_config import get_logger
+from core.rate_limiter import check_rate_limit
 from core.models import Post, ProviderLog, PublishingLog
 from core.training_data import export_training_data_csv, export_training_data_jsonl
 from core.utils import hashtags_from_json
+
+logger = get_logger(__name__)
+
+
+def _safe_export(fn, *args, **kwargs) -> str:
+    check_rate_limit("export")
+    try:
+        with with_load_slot("export"):
+            return fn(*args, **kwargs)
+    except ExportError:
+        raise
+    except PermissionError as exc:
+        raise ExportError(
+            "Export failed due to file permission error.",
+            reason=str(exc),
+            user_action="Check file permissions or try another format.",
+        ) from exc
+    except OSError as exc:
+        raise ExportError(
+            "Export failed due to a file system error.",
+            reason=str(exc),
+            user_action="Check disk space and file permissions.",
+        ) from exc
+    except Exception as exc:
+        logger.error("Export failed: %s", type(exc).__name__)
+        raise ExportError(
+            "Export failed.",
+            reason=str(exc),
+            user_action="Please check file permissions or try another format.",
+            original_exception=exc,
+        ) from exc
 
 
 def filter_posts(
@@ -63,6 +98,10 @@ def _post_to_dict(post: Post) -> dict:
 
 
 def export_posts_csv(posts: list[Post]) -> str:
+    return _safe_export(_export_posts_csv_inner, posts)
+
+
+def _export_posts_csv_inner(posts: list[Post]) -> str:
     if not posts:
         rows = [{"id": "", "platform": "", "topic": "", "content": "", "status": ""}]
     else:
@@ -75,6 +114,10 @@ def export_posts_csv(posts: list[Post]) -> str:
 
 
 def export_posts_markdown(posts: list[Post]) -> str:
+    return _safe_export(_export_posts_markdown_inner, posts)
+
+
+def _export_posts_markdown_inner(posts: list[Post]) -> str:
     if not posts:
         return "# ContentPilot Export\n\nNo posts to export.\n"
 
@@ -100,6 +143,10 @@ def export_posts_markdown(posts: list[Post]) -> str:
 
 
 def export_posts_json(posts: list[Post]) -> str:
+    return _safe_export(_export_posts_json_inner, posts)
+
+
+def _export_posts_json_inner(posts: list[Post]) -> str:
     data = [_post_to_dict(p) for p in posts]
     return json.dumps(data, indent=2, ensure_ascii=False)
 

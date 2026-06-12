@@ -115,8 +115,22 @@ def platforms_from_json(raw: str | None) -> list[str]:
 
 
 def format_user_error(message: str, exc: Exception | None = None) -> str:
-    if APP_DEBUG and exc:
-        return f"{message}\n\nDebug: {type(exc).__name__}: {exc}"
+    """Format user-facing error string (backward-compatible wrapper)."""
+    if exc is not None:
+        from core.error_handler import format_user_error as _format_exc
+
+        data = _format_exc(exc)
+        parts = [message or data.get("message", "")]
+        if data.get("reason") and data["reason"] not in parts[0]:
+            parts.append(f"Reason: {data['reason']}")
+        if data.get("user_action"):
+            parts.append(f"Action: {data['user_action']}")
+        if APP_DEBUG or APP_ENV == "development":
+            if data.get("traceback"):
+                parts.append("".join(data["traceback"]))
+            else:
+                parts.append(f"Debug: {type(exc).__name__}: {sanitize_text(str(exc))}")
+        return "\n\n".join(p for p in parts if p)
     return message
 
 
@@ -130,7 +144,26 @@ SENSITIVE_KEYS = frozenset({
     "token",
     "password",
     "secret",
+    "cookie",
+    "bearer",
 })
+
+_SECRET_TEXT_PATTERNS = (
+    (re.compile(r"sk-[a-zA-Z0-9_-]{10,}", re.IGNORECASE), "sk-****"),
+    (re.compile(r"sk-ant-[a-zA-Z0-9_-]{10,}", re.IGNORECASE), "sk-ant-****"),
+    (re.compile(r"Bearer\s+[a-zA-Z0-9._-]+", re.IGNORECASE), "Bearer ****"),
+    (re.compile(r"Authorization:\s*\S+", re.IGNORECASE), "Authorization: ****"),
+)
+
+
+def sanitize_text(text: str) -> str:
+    """Redact secrets from plain text."""
+    if not text:
+        return ""
+    result = str(text)
+    for pattern, replacement in _SECRET_TEXT_PATTERNS:
+        result = pattern.sub(replacement, result)
+    return result
 
 
 def sanitize_payload(data: object) -> str:

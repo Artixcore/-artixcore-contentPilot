@@ -5,6 +5,7 @@ import logging
 from sqlalchemy import inspect, text
 from sqlalchemy.engine import Engine
 
+from core.errors import DatabaseError
 from core.models import Base
 
 logger = logging.getLogger(__name__)
@@ -41,27 +42,43 @@ COLUMN_MIGRATIONS: list[tuple[str, str, str]] = [
 
 def run_migrations(engine: Engine) -> None:
     """Create missing tables and add missing columns safely."""
-    Base.metadata.create_all(bind=engine)
-    inspector = inspect(engine)
-    existing_tables = set(inspector.get_table_names())
+    try:
+        Base.metadata.create_all(bind=engine)
+        inspector = inspect(engine)
+        existing_tables = set(inspector.get_table_names())
 
-    for table_name, column_name, column_def in COLUMN_MIGRATIONS:
-        if table_name not in existing_tables:
-            continue
-        existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
-        if column_name in existing_columns:
-            continue
-        stmt = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}"
-        try:
-            with engine.begin() as conn:
-                conn.execute(text(stmt))
-            logger.info("Migration: added column %s.%s", table_name, column_name)
-        except Exception as exc:
-            logger.warning(
-                "Migration skipped %s.%s: %s", table_name, column_name, type(exc).__name__
-            )
+        for table_name, column_name, column_def in COLUMN_MIGRATIONS:
+            if table_name not in existing_tables:
+                continue
+            existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
+            if column_name in existing_columns:
+                continue
+            stmt = f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_def}"
+            try:
+                with engine.begin() as conn:
+                    conn.execute(text(stmt))
+                logger.info("Migration: added column %s.%s", table_name, column_name)
+            except Exception as exc:
+                logger.warning(
+                    "Migration skipped %s.%s: %s", table_name, column_name, type(exc).__name__
+                )
 
-    inspector = inspect(engine)
-    for table_name in Base.metadata.tables:
-        if table_name not in inspector.get_table_names():
-            logger.warning("Table still missing after migration: %s", table_name)
+        inspector = inspect(engine)
+        for table_name in Base.metadata.tables:
+            if table_name not in inspector.get_table_names():
+                logger.warning("Table still missing after migration: %s", table_name)
+                raise DatabaseError(
+                    f"Required table missing: {table_name}",
+                    reason="Database migration could not create all required tables.",
+                    user_action="Please check database permissions and restart the app.",
+                )
+    except DatabaseError:
+        raise
+    except Exception as exc:
+        logger.error("Migration failed: %s", type(exc).__name__, exc_info=True)
+        raise DatabaseError(
+            "Database migration failed.",
+            reason=str(exc),
+            user_action="Please check local database file permissions or restart the app.",
+            original_exception=exc,
+        ) from exc

@@ -7,7 +7,7 @@ from core.agent import AgentValidationError, ContentPilotAgent
 from core.database import get_brand_profile
 from core.models import PLATFORMS, Post
 from core.router import ProviderRouter
-from core.utils import format_user_error
+from ui.notifications import show_error_from_dict, show_success
 from providers import PROVIDER_UNAVAILABLE_MSG
 from ui.components import (
     render_alert,
@@ -126,53 +126,58 @@ def render(session: Session) -> None:
             render_alert("Topic is required. Please enter a topic for your post.", "error")
             return
 
-        with st.spinner("Generating content..."):
-            try:
-                agent = ContentPilotAgent(session)
-                result = agent.generate_post(
-                    platform=platform,
-                    topic=topic.strip(),
-                    goal=goal or "",
-                    tone=tone or "",
-                    language=language,
-                    cta=cta or "",
-                    provider_mode=provider_mode,
-                    selected_provider=selected_provider if provider_mode in ("manual", "fallback") else None,
-                )
-                st.success(f"Post saved (ID: {result.post_id}) — pending approval")
+        from core.safe_runner import safe_streamlit_action
+        from ui.loading import loading_spinner
 
-                st.markdown('<div class="cp-card">', unsafe_allow_html=True)
-                render_section_header("Generated Content Preview")
-                st.text_area("Content", value=result.content, height=200, disabled=True, label_visibility="collapsed")
+        agent = ContentPilotAgent(session)
+        with loading_spinner("Generating with AI provider..."):
+            outcome = safe_streamlit_action(
+                "generate_post",
+                agent.generate_post,
+                platform=platform,
+                topic=topic.strip(),
+                goal=goal or "",
+                tone=tone or "",
+                language=language,
+                cta=cta or "",
+                provider_mode=provider_mode,
+                selected_provider=selected_provider if provider_mode in ("manual", "fallback") else None,
+                load_type="ai",
+            )
+        if not outcome.get("success"):
+            show_error_from_dict(outcome.get("error") or {})
+            return
+        result = outcome.get("result")
+        if result:
+            show_success(f"Post saved (ID: {result.post_id}) — pending approval")
 
-                if result.hashtags:
-                    tags = " ".join(f"#{h.lstrip('#')}" for h in result.hashtags)
-                    st.write(f"**Hashtags:** {tags}")
+            st.markdown('<div class="cp-card">', unsafe_allow_html=True)
+            render_section_header("Generated Content Preview")
+            st.text_area("Content", value=result.content, height=200, disabled=True, label_visibility="collapsed")
 
-                if result.image_prompt:
-                    st.write(f"**Image Prompt:** {result.image_prompt}")
+            if result.hashtags:
+                tags = " ".join(f"#{h.lstrip('#')}" for h in result.hashtags)
+                st.write(f"**Hashtags:** {tags}")
 
-                mc1, mc2, mc3 = st.columns(3)
-                mc1.write(f"**Provider:** {result.provider_used}")
-                mc2.write(f"**Model:** {result.model_used or 'N/A'}")
-                mc3.markdown(render_status_badge("Pending Approval", "pending"), unsafe_allow_html=True)
+            if result.image_prompt:
+                st.write(f"**Image Prompt:** {result.image_prompt}")
 
-                if result.quality_notes:
-                    render_alert(f"Quality Notes: {result.quality_notes}", "info")
+            mc1, mc2, mc3 = st.columns(3)
+            mc1.write(f"**Provider:** {result.provider_used}")
+            mc2.write(f"**Model:** {result.model_used or 'N/A'}")
+            mc3.markdown(render_status_badge("Pending Approval", "pending"), unsafe_allow_html=True)
 
-                bc1, bc2, bc3 = st.columns(3)
-                with bc1:
-                    st.button("Save", key="gen_save", disabled=True, use_container_width=True)
-                with bc2:
-                    if st.button("Go to Approvals", key="gen_approve", use_container_width=True):
-                        from ui.navigation import navigate
-                        navigate("approvals")
-                        st.rerun()
-                with bc3:
-                    st.button("Edit", key="gen_edit", use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
+            if result.quality_notes:
+                render_alert(f"Quality Notes: {result.quality_notes}", "info")
 
-            except AgentValidationError as exc:
-                render_alert(exc.message, "error")
-            except Exception as exc:
-                render_alert(format_user_error("Content generation failed. Please try again.", exc), "error")
+            bc1, bc2, bc3 = st.columns(3)
+            with bc1:
+                st.button("Save", key="gen_save", disabled=True, use_container_width=True)
+            with bc2:
+                if st.button("Go to Approvals", key="gen_approve", use_container_width=True):
+                    from ui.navigation import navigate
+                    navigate("approvals")
+                    st.rerun()
+            with bc3:
+                st.button("Edit", key="gen_edit", use_container_width=True)
+            st.markdown("</div>", unsafe_allow_html=True)

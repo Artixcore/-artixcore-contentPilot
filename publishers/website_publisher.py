@@ -21,6 +21,7 @@ def _slugify(text: str) -> str:
 
 class WebsitePublisher(BasePublisher):
     name = "website_blog"
+    circuit_name = "website"
 
     def __init__(self):
         self.base_url = os.getenv("WEBSITE_API_BASE_URL", "").strip().rstrip("/")
@@ -57,13 +58,10 @@ class WebsitePublisher(BasePublisher):
         }
         url = f"{self.base_url}{self.post_endpoint}"
         try:
-            with httpx.Client(timeout=TIMEOUT) as client:
-                response = client.post(url, json=payload, headers=headers)
-            raw = {}
-            try:
-                raw = response.json()
-            except Exception:
-                raw = {"status_code": response.status_code, "text": response.text[:500]}
+            response = self._safe_request(
+                "POST", url, timeout=TIMEOUT, json=payload, headers=headers
+            )
+            raw = self._parse_json_response(response)
 
             if response.status_code >= 400:
                 error_msg = ""

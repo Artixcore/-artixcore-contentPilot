@@ -6,6 +6,42 @@ from typing import Any
 
 import streamlit as st
 
+ICON_RAIL: list[tuple[str, str, str]] = [
+    ("dashboard", "⌂", "Dashboard"),
+    ("ai_workspace", "✦", "Content Agent"),
+    ("chat_inbox", "💬", "Chatbot"),
+    ("publish_center", "↗", "Social Publishing"),
+    ("training_data", "◎", "Training Data"),
+    ("integrations", "⚡", "Integrations"),
+    ("chat_control", "⚙", "Settings"),
+]
+
+SIDEBAR_PRIMARY: list[tuple[str, str]] = [
+    ("dashboard", "Dashboard"),
+    ("ai_workspace", "AI Workspace"),
+    ("create_post", "Create Post"),
+    ("chat_inbox", "Chat Inbox"),
+    ("publish_center", "Publish Center"),
+    ("campaigns", "Campaigns"),
+]
+
+SIDEBAR_WORKSPACES: list[str] = [
+    "Artixcore",
+    "Dealzyro",
+    "Digitalplanup",
+    "ContentPilot",
+    "General",
+]
+
+SIDEBAR_SYSTEM: list[tuple[str, str]] = [
+    ("brand_settings", "Brand Settings"),
+    ("provider_settings", "Provider Settings"),
+    ("publishing_settings", "Publishing Settings"),
+    ("chat_control", "Chat Control"),
+    ("training_data", "Training Data"),
+    ("exports", "Exports"),
+]
+
 PAGE_LABELS: dict[str, str] = {
     "dashboard": "Dashboard",
     "ai_workspace": "AI Workspace",

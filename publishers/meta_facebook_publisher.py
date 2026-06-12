@@ -14,6 +14,7 @@ TIMEOUT = 30.0
 
 class MetaFacebookPublisher(BasePublisher):
     name = "facebook"
+    circuit_name = "facebook"
 
     def __init__(self):
         self.graph_version = os.getenv("META_GRAPH_VERSION", "v23.0").strip()
@@ -37,13 +38,8 @@ class MetaFacebookPublisher(BasePublisher):
             "access_token": self.page_access_token,
         }
         try:
-            with httpx.Client(timeout=TIMEOUT) as client:
-                response = client.post(url, data=payload)
-            raw = {}
-            try:
-                raw = response.json()
-            except Exception:
-                raw = {"status_code": response.status_code, "text": response.text[:500]}
+            response = self._safe_request("POST", url, timeout=TIMEOUT, data=payload)
+            raw = self._parse_json_response(response)
 
             if response.status_code >= 400 or (isinstance(raw, dict) and raw.get("error")):
                 error_msg = ""

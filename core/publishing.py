@@ -6,7 +6,11 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from core.errors import PublishingError
+from core.load_manager import with_load_slot
+from core.logging_config import get_logger
 from core.models import PLATFORMS, Post, PublishingLog
+from core.rate_limiter import check_rate_limit
 from core.training_data import update_training_on_approval
 from core.utils import log_content_event, sanitize_payload
 from publishers import get_all_publishers
@@ -59,6 +63,19 @@ def _log_publish(
 
 
 def publish_post(
+    session: Session,
+    post_id: int,
+    platform_name: str,
+    image_url: str | None = None,
+) -> dict:
+    check_rate_limit("publishing", key=platform_name)
+    logger.info("Publishing attempt: post_id=%s platform=%s", post_id, platform_name)
+
+    with with_load_slot("publish"):
+        return _publish_post_inner(session, post_id, platform_name, image_url)
+
+
+def _publish_post_inner(
     session: Session,
     post_id: int,
     platform_name: str,
@@ -123,7 +140,14 @@ def publish_post(
             {"platform": platform_name, "external_post_id": result.get("external_post_id")},
         )
         session.commit()
+        logger.info("Publishing succeeded: post_id=%s platform=%s", post_id, platform_name)
     else:
+        logger.warning(
+            "Publishing failed: post_id=%s platform=%s error=%s",
+            post_id,
+            platform_name,
+            result.get("error"),
+        )
         post.publish_error = result.get("error", "Publish failed.")
         post.publish_raw_response = json.dumps(result.get("raw_response", {}), ensure_ascii=False)
         log_content_event(

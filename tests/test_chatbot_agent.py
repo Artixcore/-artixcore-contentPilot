@@ -5,6 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from chatbot.chatbot_agent import ArtixcoreChatbotAgent, CHATBOT_PROVIDER_UNAVAILABLE_MSG, ChatbotAgentError
+from core.errors import ChatbotError
 from chatbot.personality import build_system_prompt
 from core.chat_database import get_chatbot_settings, get_or_create_conversation, save_incoming_message
 from core.database import get_brand_profile
@@ -16,7 +17,7 @@ def test_blocks_generation_when_no_provider(db_session):
     agent = ArtixcoreChatbotAgent(db_session)
     conv = get_or_create_conversation(db_session, "facebook", user_platform_id="u1", user_display_name="Test")
     user_msg = save_incoming_message(db_session, conv.id, "facebook", "Hello")
-    with pytest.raises(ChatbotAgentError, match="Chatbot"):
+    with pytest.raises(ChatbotError, match="Chatbot"):
         agent.generate_reply("facebook", conv.id, "Hello", user_msg.id)
 
 

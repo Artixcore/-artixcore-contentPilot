@@ -94,27 +94,36 @@ def render(session: Session) -> None:
                     disabled=not confirmed,
                     use_container_width=True,
                 ):
-                    try:
-                        with st.spinner("Publishing..."):
-                            result = publish_post(
-                                session,
-                                post.id,
-                                target_platform,
-                                image_url=image_url if target_platform == "instagram" else None,
-                            )
+                    from core.safe_runner import safe_streamlit_action
+                    from ui.loading import loading_spinner
+                    from ui.notifications import show_error_from_dict, show_success
+
+                    with loading_spinner(f"Publishing to {target_platform.replace('_', ' ').title()}..."):
+                        outcome = safe_streamlit_action(
+                            "publish_post",
+                            publish_post,
+                            session,
+                            post.id,
+                            target_platform,
+                            image_url=image_url if target_platform == "instagram" else None,
+                            load_type="publish",
+                        )
+                    if not outcome.get("success"):
+                        show_error_from_dict(outcome.get("error") or {})
+                    else:
+                        result = outcome.get("result") or {}
                         if result.get("success"):
-                            st.success(
-                                f"Published! ID: {result.get('external_post_id', 'N/A')}"
-                            )
+                            show_success(f"Published! ID: {result.get('external_post_id', 'N/A')}")
                             if result.get("external_post_url"):
                                 st.write(f"URL: {result['external_post_url']}")
                             st.rerun()
                         else:
-                            st.error(result.get("error", "Publish failed."))
-                    except PublishError as exc:
-                        st.error(exc.message)
-                    except Exception as exc:
-                        st.error(format_user_error("Publish failed.", exc))
+                            show_error_from_dict({
+                                "message": "Publish failed.",
+                                "reason": result.get("error", "Unknown error"),
+                                "user_action": "Check publishing settings and try again.",
+                                "error_code": "PUBLISHING_ERROR",
+                            })
 
             with col2:
                 if st.button("Mark Manually Posted", key=f"manual_{post.id}", use_container_width=True):

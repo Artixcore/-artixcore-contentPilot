@@ -20,6 +20,9 @@ from core.chat_database import (
 from core.chat_events import log_chat_event
 from core.database import get_brand_profile
 from core.models import ChatConversation, ChatMessage
+from core.errors import ChatbotError, ValidationAppError
+from core.load_manager import with_load_slot
+from core.rate_limiter import check_rate_limit
 from core.router import ProviderRouter
 
 logger = logging.getLogger(__name__)
@@ -42,7 +45,11 @@ class ArtixcoreChatbotAgent:
 
     def _require_provider(self) -> None:
         if not self.router.has_any_provider():
-            raise ChatbotAgentError(CHATBOT_PROVIDER_UNAVAILABLE_MSG)
+            raise ChatbotError(
+                CHATBOT_PROVIDER_UNAVAILABLE_MSG,
+                error_code="PROVIDER_UNAVAILABLE",
+                retryable=False,
+            )
 
     def _within_business_hours(self, settings) -> bool:
         if not settings.business_hours_enabled:
@@ -69,31 +76,54 @@ class ArtixcoreChatbotAgent:
         selected_provider: str | None = None,
         auto_send: bool = True,
     ) -> ChatReply:
+        if not user_message or not user_message.strip():
+            raise ValidationAppError("User message cannot be empty.")
+
+        check_rate_limit("chatbot_reply", key=platform)
         self._require_provider()
 
         settings = get_chatbot_settings(self.session)
+        if not settings:
+            raise ChatbotError(
+                "Chatbot settings not found.",
+                user_action="Configure chatbot settings in Chat Control.",
+            )
+
         brand = get_brand_profile(self.session)
         if not brand:
-            raise ChatbotAgentError("Brand profile not found. Please configure brand settings first.")
+            raise ChatbotError(
+                "Brand profile not found. Please configure brand settings first.",
+                user_action="Open Brand Settings and save your profile.",
+            )
 
         history = load_conversation_history(self.session, conversation_id)
         system_prompt = build_system_prompt(settings, brand, platform)
         input_prompt = build_input_prompt(user_message, history)
 
         try:
-            result = self.router.generate(
-                prompt=input_prompt,
-                system_prompt=system_prompt,
-                mode=provider_mode,
-                selected_provider=selected_provider,
-                task_type="chatbot_reply",
-            )
+            with with_load_slot("ai"):
+                result = self.router.generate(
+                    prompt=input_prompt,
+                    system_prompt=system_prompt,
+                    mode=provider_mode,
+                    selected_provider=selected_provider,
+                    task_type="chatbot_reply",
+                )
         except Exception as exc:
             msg = getattr(exc, "message", str(exc))
-            raise ChatbotAgentError(msg) from exc
+            raise ChatbotError(msg, original_exception=exc) from exc
 
         draft_text = (result.text or "").strip()
         safety = run_safety_check(user_message, draft_text, settings)
+
+        if not safety.passed:
+            log_chat_event(
+                self.session,
+                conversation_id,
+                "safety_blocked",
+                {"notes": safety.notes},
+                message_id=user_message_id,
+            )
 
         if settings.approval_required or not safety.passed:
             reply_status = "pending_approval"
@@ -141,8 +171,15 @@ class ArtixcoreChatbotAgent:
                 sent = send_result.get("success", False)
                 if not sent:
                     msg.reply_status = "failed"
-                    msg.safety_notes = f"{msg.safety_notes or ''}\nSend failed: {send_result.get('error', '')}".strip()
+                    msg.safety_notes = (
+                        f"{msg.safety_notes or ''}\nSend failed: {send_result.get('error', '')}"
+                    ).strip()
                     self.session.flush()
+                    logger.warning(
+                        "Chatbot reply generated but send failed: conversation=%s error=%s",
+                        conversation_id,
+                        send_result.get("error"),
+                    )
 
         return ChatReply(
             success=True,
